@@ -182,6 +182,19 @@ async function getGroupColor(domain, faviconUrl = null, tabId = null) {
   return groupColor;
 }
 
+// グループが実際に存在するかチェックする関数
+async function verifyGroupExists(groupId) {
+  try {
+    await chrome.tabGroups.get(groupId);
+    return true;
+  } catch (error) {
+    if (error.message.includes('No group with id')) {
+      return false;
+    }
+    throw error; // 他のエラーは再スロー
+  }
+}
+
 // 既存のグループの色を更新する関数
 async function updateExistingGroupColor(domain, newColor = null) {
   try {
@@ -192,6 +205,14 @@ async function updateExistingGroupColor(domain, newColor = null) {
     let updated = false;
     for (const group of groups) {
       console.log(`Checking group: ${group.title} (id: ${group.id})`);
+      
+      // グループが実際に存在するかチェック
+      const groupExists = await verifyGroupExists(group.id);
+      if (!groupExists) {
+        console.log(`Group ${group.id} no longer exists, skipping`);
+        continue;
+      }
+      
       if (group.title === domain) {
         let color = newColor;
         if (!color) {
@@ -202,9 +223,18 @@ async function updateExistingGroupColor(domain, newColor = null) {
         }
         
         console.log(`Updating group ${group.id} to color: ${color}`);
-        await chrome.tabGroups.update(group.id, { color: color });
-        console.log(`Successfully updated group color for ${domain}: ${color}`);
-        updated = true;
+        try {
+          await chrome.tabGroups.update(group.id, { color: color });
+          console.log(`Successfully updated group color for ${domain}: ${color}`);
+          updated = true;
+        } catch (error) {
+          console.error(`Error updating group ${group.id} color:`, error);
+          if (error.message.includes('No group with id')) {
+            console.log(`Group ${group.id} no longer exists, skipping color update`);
+          } else {
+            throw error; // 他のエラーは再スロー
+          }
+        }
       }
     }
     
@@ -318,11 +348,34 @@ async function regroupSingleTab(tabId, domain) {
     
     if (targetGroup) {
       // 既存グループに追加
-      await chrome.tabs.group({
-        tabIds: [tabId],
-        groupId: targetGroup.id
-      });
-      console.log(`Tab ${tabId} added to existing ${domain} group`);
+      try {
+        await chrome.tabs.group({
+          tabIds: [tabId],
+          groupId: targetGroup.id
+        });
+        console.log(`Tab ${tabId} added to existing ${domain} group`);
+      } catch (error) {
+        console.error(`Error adding tab ${tabId} to group ${targetGroup.id}:`, error);
+        if (error.message.includes('No group with id')) {
+          console.log(`Group ${targetGroup.id} no longer exists, creating new group for ${domain}`);
+          // 新しいグループを作成
+          const allTabIds = [tabId, ...sameDomainTabs.map(tab => tab.id)];
+          const groupId = await chrome.tabs.group({ tabIds: allTabIds });
+          
+          const faviconTab = targetTab.favIconUrl ? targetTab : sameDomainTabs.find(tab => tab.favIconUrl);
+          const faviconUrl = faviconTab?.favIconUrl;
+          const groupColor = await getGroupColor(domain, faviconUrl, faviconTab?.id);
+          
+          console.log(`Creating replacement group in regroupSingleTab for domain: ${domain}, color: ${groupColor}`);
+          await chrome.tabGroups.update(groupId, {
+            title: domain,
+            color: groupColor
+          });
+          console.log(`New replacement group created for ${domain} with ${allTabIds.length} tabs, title set to: ${domain}`);
+        } else {
+          throw error; // 他のエラーは再スロー
+        }
+      }
     } else if (sameDomainTabs.length > 0) {
       // 新しいグループを作成（2つ以上のタブがある場合のみ）
       const allTabIds = [tabId, ...sameDomainTabs.map(tab => tab.id)];
@@ -408,15 +461,39 @@ async function groupTabsByDomainInWindow(windowId) {
         
         if (existingGroup) {
           // 既存グループに新しいタブを追加
-          const tabIds = domainTabs.map(tab => tab.id);
-          const groupedTabIds = await chrome.tabs.query({groupId: existingGroup.id});
-          const newTabIds = tabIds.filter(id => !groupedTabIds.some(t => t.id === id));
-          
-          if (newTabIds.length > 0) {
-            await chrome.tabs.group({
-              tabIds: newTabIds,
-              groupId: existingGroup.id
-            });
+          try {
+            const tabIds = domainTabs.map(tab => tab.id);
+            const groupedTabIds = await chrome.tabs.query({groupId: existingGroup.id});
+            const newTabIds = tabIds.filter(id => !groupedTabIds.some(t => t.id === id));
+            
+            if (newTabIds.length > 0) {
+              await chrome.tabs.group({
+                tabIds: newTabIds,
+                groupId: existingGroup.id
+              });
+              console.log(`Added ${newTabIds.length} tabs to existing group ${existingGroup.id}`);
+            }
+          } catch (error) {
+            console.error(`Error adding tabs to existing group ${existingGroup.id}:`, error);
+            // グループが存在しない場合は、新しいグループを作成
+            if (error.message.includes('No group with id')) {
+              console.log(`Group ${existingGroup.id} no longer exists, creating new group for ${domain}`);
+              const tabIds = domainTabs.map(tab => tab.id);
+              const groupId = await chrome.tabs.group({ tabIds });
+              
+              // faviconURLを取得（最初に見つかったタブから）
+              const faviconTab = domainTabs.find(tab => tab.favIconUrl);
+              const groupColor = await getGroupColor(domain, faviconTab?.favIconUrl, faviconTab?.id);
+              
+              console.log(`Creating replacement group for domain: ${domain}, title: ${groupTitle}, color: ${groupColor}`);
+              await chrome.tabGroups.update(groupId, {
+                title: groupTitle,
+                color: groupColor
+              });
+              console.log(`Successfully created replacement group ${groupId} with title: ${groupTitle}`);
+            } else {
+              throw error; // 他のエラーは再スロー
+            }
           }
         } else {
           // 新しいグループを作成（2つ以上のタブから）
