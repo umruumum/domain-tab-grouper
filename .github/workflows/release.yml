@@ -1,0 +1,143 @@
+name: Release Chrome Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from tag or input
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Version must be in format v*.*.* (e.g., v1.0.0)"
+            exit 1
+          fi
+
+      - name: Check manifest.json version
+        run: |
+          MANIFEST_VERSION=$(jq -r '.version' manifest.json)
+          TAG_VERSION="${{ steps.version.outputs.version_number }}"
+          
+          echo "Manifest version: $MANIFEST_VERSION"
+          echo "Tag version: $TAG_VERSION"
+          
+          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "Warning: manifest.json version ($MANIFEST_VERSION) does not match tag version ($TAG_VERSION)"
+            echo "This is not an error, but consider updating manifest.json"
+          fi
+
+      - name: Create extension package
+        run: |
+          # Create temporary directory for extension files
+          mkdir -p extension-package
+          
+          # Copy required files for Chrome extension
+          cp manifest.json extension-package/
+          cp background.js extension-package/
+          cp popup.html extension-package/
+          cp popup.js extension-package/
+          
+          # Copy icons if they exist
+          if [ -d "icons" ]; then
+            cp -r icons extension-package/
+          fi
+          
+          # Create zip file
+          cd extension-package
+          zip -r "../domain-tab-grouper-${{ steps.version.outputs.version }}.zip" .
+          cd ..
+          
+          echo "Package created: domain-tab-grouper-${{ steps.version.outputs.version }}.zip"
+          ls -la *.zip
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Get commits since last tag
+          LAST_TAG=$(git tag --sort=-version:refname | grep -v "^$VERSION$" | head -n1)
+          
+          if [ -n "$LAST_TAG" ]; then
+            echo "Generating changelog from $LAST_TAG to $VERSION"
+            COMMITS=$(git log --pretty=format:"- %s (%h)" $LAST_TAG..$VERSION)
+          else
+            echo "No previous tag found, using all commits"
+            COMMITS=$(git log --pretty=format:"- %s (%h)")
+          fi
+          
+          # Create release notes
+          cat > release_notes.md << EOF
+          ## 🚀 Changes in $VERSION
+          
+          $COMMITS
+          
+          ## 📦 Installation
+          
+          1. Download the \`domain-tab-grouper-$VERSION.zip\` file
+          2. Extract the contents
+          3. Load the extension in Chrome:
+             - Open \`chrome://extensions/\`
+             - Enable "Developer mode"
+             - Click "Load unpacked" and select the extracted folder
+          
+          ## 🔧 Chrome Extension Features
+          
+          - ✅ 自動タブグループ化
+          - ✅ ウィンドウ別グループ管理  
+          - ✅ 除外ドメイン設定
+          - ✅ リアルタイム更新
+          - ✅ 設定永続化
+          
+          ---
+          
+          Built with ❤️ for better browsing experience
+          EOF
+          
+          echo "release_notes_file=release_notes.md" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "Domain Tab Grouper ${{ steps.version.outputs.version }}"
+          body_path: ${{ steps.release_notes.outputs.release_notes_file }}
+          files: |
+            domain-tab-grouper-${{ steps.version.outputs.version }}.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+
+      - name: Release Summary
+        run: |
+          echo "🎉 Release created successfully!"
+          echo "📦 Package: domain-tab-grouper-${{ steps.version.outputs.version }}.zip"
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }}"

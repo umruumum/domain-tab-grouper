@@ -178,8 +178,8 @@ async function regroupSingleTab(tabId, domain) {
         groupId: targetGroup.id
       });
       console.log(`Tab ${tabId} added to existing ${domain} group`);
-    } else {
-      // 新しいグループを作成（単体でも他のタブとでも）
+    } else if (sameDomainTabs.length > 0) {
+      // 新しいグループを作成（2つ以上のタブがある場合のみ）
       const allTabIds = [tabId, ...sameDomainTabs.map(tab => tab.id)];
       const groupId = await chrome.tabs.group({ tabIds: allTabIds });
       
@@ -188,6 +188,8 @@ async function regroupSingleTab(tabId, domain) {
         color: getGroupColor(domain)
       });
       console.log(`New group created for ${domain} with ${allTabIds.length} tabs`);
+    } else {
+      console.log(`Single tab for ${domain}, not creating group`);
     }
   } catch (error) {
     console.error('Error regrouping single tab:', error);
@@ -245,9 +247,9 @@ async function groupTabsByDomainInWindow(windowId) {
       }
     }
     
-    // ドメインごとにグループを作成または更新（単体タブも含む）
+    // ドメインごとにグループを作成または更新（2つ以上のタブから）
     for (const [domain, domainTabs] of Object.entries(domainGroups)) {
-      if (domainTabs.length >= 1) { // 単体タブでもグループ化
+      if (domainTabs.length >= 2) { // 2つ以上のタブからグループ化
         const groupTitle = domain;
         
         // 既存のグループがあるかチェック
@@ -266,7 +268,7 @@ async function groupTabsByDomainInWindow(windowId) {
             });
           }
         } else {
-          // 新しいグループを作成（単体タブでも）
+          // 新しいグループを作成（2つ以上のタブから）
           const tabIds = domainTabs.map(tab => tab.id);
           const groupId = await chrome.tabs.group({ tabIds });
           
