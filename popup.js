@@ -114,82 +114,6 @@ function getColorCode(color) {
   return colorMap[color] || '#4285f4';
 }
 
-// タブリストを更新（現在のウィンドウのみ）
-async function updateTabList() {
-  try {
-    // 現在のウィンドウを取得
-    const currentWindow = await chrome.windows.getCurrent();
-    const tabs = await chrome.tabs.query({ windowId: currentWindow.id });
-    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
-    const tabList = document.getElementById('tabList');
-    
-    // スクロール位置を保存
-    const scrollTop = tabList.scrollTop;
-    
-    // 既存の内容をクリア
-    tabList.innerHTML = '';
-    
-    if (tabs.length === 0) {
-      tabList.innerHTML = '<div class="tab-item">タブはありません</div>';
-      return;
-    }
-    
-    // グループ情報をマップに変換
-    const groupMap = {};
-    groups.forEach(group => {
-      groupMap[group.id] = group;
-    });
-    
-    for (const tab of tabs) {
-      const tabElement = document.createElement('div');
-      tabElement.className = 'tab-item';
-      
-      // タブのドメインを取得
-      const domain = extractDomain(tab.url);
-      
-      // グループ情報を取得
-      let groupInfo = '';
-      if (tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-        const group = groupMap[tab.groupId];
-        if (group) {
-          const groupColor = getColorCode(group.color);
-          groupInfo = `<span class="tab-group-indicator" style="background-color: ${groupColor}">${group.title || 'グループ'}</span>`;
-        }
-      }
-      
-      tabElement.innerHTML = `
-        <img class="tab-favicon" src="${tab.favIconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="%23ddd"/></svg>'}" alt="">
-        <div class="tab-info">
-          <div class="tab-title">${tab.title || 'タイトルなし'}</div>
-          <div class="tab-domain">${domain || 'ドメインなし'}</div>
-        </div>
-        ${groupInfo}
-      `;
-      
-      // データ属性を設定
-      tabElement.dataset.tabId = tab.id;
-      tabElement.dataset.domain = domain || '';
-      tabElement.dataset.url = tab.url;
-      
-      // クリックイベントを追加（ドメインが有効な場合のみ）
-      if (domain && domain.trim() !== '') {
-        tabElement.addEventListener('click', (e) => handleTabClick(e, domain, tab));
-        tabElement.addEventListener('contextmenu', (e) => handleTabRightClick(e, domain, tab));
-        tabElement.style.cursor = 'pointer';
-      } else {
-        tabElement.style.cursor = 'default';
-      }
-      
-      tabList.appendChild(tabElement);
-    }
-    
-    // スクロール位置を復元
-    tabList.scrollTop = scrollTop;
-  } catch (error) {
-    console.error('Error updating tab list:', error);
-    showStatus('エラーが発生しました');
-  }
-}
 
 // タブをグループ化する関数（現在のウィンドウのみ）
 async function groupTabs() {
@@ -549,25 +473,50 @@ let currentContextDomain = null;
 // グループをクリックしたときの処理
 function handleGroupClick(event, domain) {
   event.preventDefault();
-  console.log('Group clicked:', domain);
-  console.log('Domain type in click handler:', typeof domain);
+  console.log('=== GROUP CLICK DEBUG ===');
+  console.log('Received domain parameter:', domain);
+  console.log('Domain type:', typeof domain);
+  console.log('Domain is null:', domain === null);
+  console.log('Domain is undefined:', domain === undefined);
   console.log('Event target:', event.target);
   console.log('Event currentTarget:', event.currentTarget);
   console.log('Dataset domain:', event.currentTarget.dataset.domain);
+  console.log('Dataset groupId:', event.currentTarget.dataset.groupId);
+  
+  // ドメインがnullの場合、datasetから取得を試行
+  let finalDomain = domain;
+  if (!finalDomain || finalDomain === 'null' || finalDomain.trim() === '') {
+    finalDomain = event.currentTarget.dataset.domain;
+    console.log('Using fallback domain from dataset:', finalDomain);
+  }
+  
+  console.log('Final domain to use:', finalDomain);
+  console.log('=========================');
+  
   hideContextMenu();
-  showContextMenu(event, domain);
+  showContextMenu(event, finalDomain);
 }
 
 // グループを右クリックしたときの処理
 function handleGroupRightClick(event, domain) {
   event.preventDefault();
-  console.log('Group right-clicked:', domain);
-  console.log('Domain type in right-click handler:', typeof domain);
-  console.log('Event target:', event.target);
-  console.log('Event currentTarget:', event.currentTarget);
+  console.log('=== GROUP RIGHT-CLICK DEBUG ===');
+  console.log('Received domain parameter:', domain);
+  console.log('Domain type:', typeof domain);
   console.log('Dataset domain:', event.currentTarget.dataset.domain);
+  
+  // ドメインがnullの場合、datasetから取得を試行
+  let finalDomain = domain;
+  if (!finalDomain || finalDomain === 'null' || finalDomain.trim() === '') {
+    finalDomain = event.currentTarget.dataset.domain;
+    console.log('Using fallback domain from dataset:', finalDomain);
+  }
+  
+  console.log('Final domain to use:', finalDomain);
+  console.log('===============================');
+  
   hideContextMenu();
-  showContextMenu(event, domain);
+  showContextMenu(event, finalDomain);
 }
 
 // コンテキストメニューを表示
@@ -664,6 +613,11 @@ async function excludeDomainFromMenu() {
 
 // 色変更（コンテキストメニューから）
 async function changeColorFromMenu() {
+  console.log('=== COLOR CHANGE FROM MENU DEBUG ===');
+  console.log('currentContextDomain:', currentContextDomain);
+  console.log('Domain type:', typeof currentContextDomain);
+  console.log('====================================');
+  
   if (!currentContextDomain) {
     showStatus('ドメインが選択されていません');
     return;
@@ -754,29 +708,6 @@ async function selectColor(color) {
   }
 }
 
-// タブをクリックしたときの処理
-function handleTabClick(event, domain, tab) {
-  event.preventDefault();
-  console.log('Tab clicked:', domain);
-  console.log('Domain type in click handler:', typeof domain);
-  console.log('Event target:', event.target);
-  console.log('Event currentTarget:', event.currentTarget);
-  console.log('Dataset domain:', event.currentTarget.dataset.domain);
-  hideContextMenu();
-  showContextMenu(event, domain);
-}
-
-// タブを右クリックしたときの処理
-function handleTabRightClick(event, domain, tab) {
-  event.preventDefault();
-  console.log('Tab right-clicked:', domain);
-  console.log('Domain type in right-click handler:', typeof domain);
-  console.log('Event target:', event.target);
-  console.log('Event currentTarget:', event.currentTarget);
-  console.log('Dataset domain:', event.currentTarget.dataset.domain);
-  hideContextMenu();
-  showContextMenu(event, domain);
-}
 
 
 // ドメインからホスト名を抽出する関数
@@ -825,22 +756,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateGroupList();
   updateExcludedDomainsList();
   updateDomainColorsList();
-  
-  // View toggle buttons
-  document.getElementById('showGroupsBtn').addEventListener('click', () => {
-    document.getElementById('showGroupsBtn').classList.add('active');
-    document.getElementById('showTabsBtn').classList.remove('active');
-    document.getElementById('groupList').style.display = 'block';
-    document.getElementById('tabList').style.display = 'none';
-  });
-  
-  document.getElementById('showTabsBtn').addEventListener('click', () => {
-    document.getElementById('showTabsBtn').classList.add('active');
-    document.getElementById('showGroupsBtn').classList.remove('active');
-    document.getElementById('groupList').style.display = 'none';
-    document.getElementById('tabList').style.display = 'block';
-    updateTabList();
-  });
   
   // ボタンのイベントリスナー
   document.getElementById('groupTabs').addEventListener('click', groupTabs);
