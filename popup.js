@@ -366,6 +366,10 @@ function getColorLabel(color) {
 // ドメイン色を設定する関数
 async function addDomainColor(domain, color) {
   try {
+    console.log('=== ADD DOMAIN COLOR DEBUG ===');
+    console.log('Input domain:', domain);
+    console.log('Input color:', color);
+    
     if (!domain || domain.trim() === '') {
       showStatus('ドメインを入力してください');
       return;
@@ -377,14 +381,17 @@ async function addDomainColor(domain, color) {
     }
     
     domain = domain.trim().toLowerCase();
+    console.log('Processed domain:', domain);
     
     // 簡単なバリデーション
     if (!isValidDomain(domain)) {
       showStatus('無効なドメイン形式です');
+      console.log('Domain validation failed');
       return;
     }
     
     showStatus('ドメイン色を設定中...');
+    console.log('Sending message to background script...');
     
     const response = await chrome.runtime.sendMessage({ 
       action: 'setDomainColor', 
@@ -392,19 +399,28 @@ async function addDomainColor(domain, color) {
       color: color
     });
     
+    console.log('Background response:', response);
+    
     if (response && response.success) {
       showStatus(`${domain} の色を ${getColorLabel(color)} に設定しました`);
       await updateDomainColorsList();
-      document.getElementById('colorDomainInput').value = '';
-      document.getElementById('colorSelect').value = '';
+      
+      // 入力フィールドをクリア（存在する場合のみ）
+      const domainInput = document.getElementById('colorDomainInput');
+      const colorSelect = document.getElementById('colorSelect');
+      if (domainInput) domainInput.value = '';
+      if (colorSelect) colorSelect.value = '';
       
       // グループリストも更新（色が変わったため）
+      console.log('Updating group list after color change...');
       setTimeout(() => {
         updateGroupList();
       }, 500);
     } else {
       showStatus((response && response.error) || 'ドメイン色の設定に失敗しました');
+      console.log('Failed to set domain color:', response);
     }
+    console.log('==============================');
   } catch (error) {
     console.error('Error setting domain color:', error);
     showStatus('エラーが発生しました');
@@ -660,6 +676,11 @@ function handleColorMenuClickOutside(event) {
 
 // 色を選択したときの処理
 async function selectColor(color) {
+  console.log('=== SELECT COLOR DEBUG ===');
+  console.log('Selected color:', color);
+  console.log('currentContextDomain:', currentContextDomain);
+  console.log('=========================');
+  
   if (!currentContextDomain) {
     showStatus('ドメインが選択されていません');
     return;
@@ -667,45 +688,8 @@ async function selectColor(color) {
   
   hideColorSelectionMenu();
   
-  const colorLabels = {
-    'red': '🔴 Red',
-    'pink': '🩷 Pink',
-    'purple': '🟣 Purple',
-    'blue': '🔵 Blue',
-    'cyan': '🩵 Cyan',
-    'green': '🟢 Green',
-    'yellow': '🟡 Yellow',
-    'grey': '⚪ Grey'
-  };
-  
-  try {
-    showStatus(`${currentContextDomain} の色を ${colorLabels[color]} に変更中...`);
-    
-    const response = await chrome.runtime.sendMessage({ 
-      action: 'setDomainColor', 
-      domain: currentContextDomain,
-      color: color
-    });
-    
-    console.log('Set domain color response:', response);
-    
-    if (response && response.success) {
-      showStatus(`${currentContextDomain} の色を ${colorLabels[color]} に変更しました`);
-      
-      // ドメイン色リストを更新
-      await updateDomainColorsList();
-      
-      // グループリストを更新（色が変わるため）
-      setTimeout(async () => {
-        await updateGroupList();
-      }, 500);
-    } else {
-      showStatus((response && response.error) || 'ドメイン色の設定に失敗しました');
-    }
-  } catch (error) {
-    console.error('Error changing color from menu:', error);
-    showStatus('エラーが発生しました');
-  }
+  // addDomainColor関数と同じロジックを使用
+  await addDomainColor(currentContextDomain, color);
 }
 
 
@@ -807,6 +791,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     option.addEventListener('click', (e) => {
       e.stopPropagation();
       const color = option.dataset.color;
+      console.log('=== COLOR OPTION CLICKED ===');
+      console.log('Clicked color option:', color);
+      console.log('Option element:', option);
+      console.log('============================');
       selectColor(color);
     });
   });
