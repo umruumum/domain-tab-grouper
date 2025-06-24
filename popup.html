@@ -230,6 +230,297 @@
       padding: 10px;
       font-style: italic;
     }
+
+    .domain-colors-section {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #e8f0fe;
+      border-radius: 8px;
+      border: 1px solid #d2e3fc;
+    }
+
+    .color-input-container {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    .color-select {
+      padding: 8px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 13px;
+      background-color: white;
+      cursor: pointer;
+      min-width: 100px;
+    }
+
+    .color-select:focus {
+      outline: none;
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+    }
+
+    .color-list {
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .color-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      margin-bottom: 4px;
+      background-color: white;
+      border-radius: 4px;
+      border: 1px solid #d2e3fc;
+      font-size: 12px;
+    }
+
+    .color-domain {
+      flex: 1;
+      color: #333;
+      font-family: monospace;
+      word-break: break-all;
+      margin-right: 8px;
+    }
+
+    .color-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      color: white;
+      margin-right: 8px;
+    }
+
+    .color-badge.red { background-color: #ff4444; }
+    .color-badge.pink { background-color: #e91e63; }
+    .color-badge.purple { background-color: #9c27b0; }
+    .color-badge.blue { background-color: #2196f3; }
+    .color-badge.cyan { background-color: #00bcd4; }
+    .color-badge.green { background-color: #4caf50; }
+    .color-badge.yellow { background-color: #ffeb3b; color: #333; }
+    .color-badge.grey { background-color: #9e9e9e; }
+
+    .quick-color {
+      margin-top: 8px;
+    }
+
+    /* コンテキストメニューのスタイル */
+    .context-menu {
+      position: absolute;
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 1000;
+      min-width: 150px;
+      display: none;
+      overflow: hidden;
+    }
+
+    .context-menu-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #333;
+      border-bottom: 1px solid #f1f3f4;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.2s;
+    }
+
+    .context-menu-item:last-child {
+      border-bottom: none;
+    }
+
+    .context-menu-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .context-menu-item.exclude {
+      color: #ea4335;
+    }
+
+    .context-menu-item.exclude:hover {
+      background-color: #fce8e6;
+    }
+
+    .context-menu-item.color-change {
+      color: #1a73e8;
+    }
+
+    .context-menu-item.color-change:hover {
+      background-color: #e8f0fe;
+    }
+
+    .context-menu-icon {
+      font-size: 14px;
+    }
+
+    /* グループアイテムのカーソル変更 */
+    .group-item {
+      cursor: pointer;
+      position: relative;
+      transition: background-color 0.2s;
+    }
+
+    .group-item:hover {
+      background-color: #f1f3f4;
+    }
+
+    /* 色選択メニューのスタイル */
+    .color-selection-menu {
+      position: absolute;
+      background: white;
+      border: 1px solid #dadce0;
+      border-radius: 12px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+      z-index: 1001;
+      min-width: 200px;
+      max-width: 250px;
+      display: none;
+      padding: 16px;
+    }
+
+    .color-selection-header {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .color-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .color-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      font-size: 13px;
+    }
+
+    .color-option:hover {
+      background-color: #f8f9fa;
+    }
+
+    .color-circle {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px #dadce0;
+    }
+
+    .color-circle.red { background-color: #ff4444; }
+    .color-circle.pink { background-color: #e91e63; }
+    .color-circle.purple { background-color: #9c27b0; }
+    .color-circle.blue { background-color: #2196f3; }
+    .color-circle.cyan { background-color: #00bcd4; }
+    .color-circle.green { background-color: #4caf50; }
+    .color-circle.yellow { background-color: #ffeb3b; }
+    .color-circle.grey { background-color: #9e9e9e; }
+
+    /* タブ表示切り替えボタンのスタイル */
+    .view-toggle {
+      display: flex;
+      margin-bottom: 15px;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #dadce0;
+    }
+
+    .view-btn {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      background: #f8f9fa;
+      color: #5f6368;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .view-btn.active {
+      background: #4285f4;
+      color: white;
+    }
+
+    .view-btn:hover:not(.active) {
+      background: #f1f3f4;
+    }
+
+    /* タブリストのスタイル */
+    .tab-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .tab-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border-left: 4px solid #4285f4;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .tab-item:hover {
+      background-color: #f1f3f4;
+    }
+
+    .tab-favicon {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .tab-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tab-title {
+      font-weight: 500;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-domain {
+      color: #5f6368;
+      font-size: 11px;
+      font-family: monospace;
+    }
+
+    .tab-group-indicator {
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 500;
+      color: white;
+      margin-left: 8px;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -249,7 +540,14 @@
     <button id="ungroupAll" class="btn secondary">すべてのグループを解除</button>
   </div>
   
+  <!-- タブ表示切り替えボタン -->
+  <div class="view-toggle">
+    <button id="showGroupsBtn" class="view-btn active">グループ表示</button>
+    <button id="showTabsBtn" class="view-btn">タブ表示</button>
+  </div>
+
   <div class="group-list" id="groupList"></div>
+  <div class="tab-list" id="tabList" style="display: none;"></div>
   
   <div class="excluded-domains-section">
     <div class="section-title">除外ドメイン設定</div>
@@ -264,8 +562,84 @@
       <div class="empty-state">除外ドメインはありません</div>
     </div>
   </div>
+
+  <div class="domain-colors-section">
+    <div class="section-title">ドメイン色設定</div>
+    <div class="color-input-container">
+      <input type="text" id="colorDomainInput" class="domain-input" placeholder="example.com">
+      <select id="colorSelect" class="color-select">
+        <option value="">色を選択</option>
+        <option value="red">🔴 Red</option>
+        <option value="pink">🩷 Pink</option>
+        <option value="purple">🟣 Purple</option>
+        <option value="blue">🔵 Blue</option>
+        <option value="cyan">🩵 Cyan</option>
+        <option value="green">🟢 Green</option>
+        <option value="yellow">🟡 Yellow</option>
+        <option value="grey">⚪ Grey</option>
+      </select>
+      <button id="addColorBtn" class="btn small">設定</button>
+    </div>
+    <div class="quick-color">
+      <button id="setCurrentColorBtn" class="btn small secondary">現在のタブの色を設定</button>
+    </div>
+    <div class="color-list" id="colorList">
+      <div class="empty-state">ドメイン色設定はありません</div>
+    </div>
+  </div>
   
   <div class="status" id="status">準備完了</div>
+
+  <!-- コンテキストメニュー -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-menu-item exclude" id="excludeDomainMenu">
+      <span class="context-menu-icon">🚫</span>
+      <span>除外ドメインに追加</span>
+    </div>
+    <div class="context-menu-item color-change" id="changeColorMenu">
+      <span class="context-menu-icon">🎨</span>
+      <span>色を変更する</span>
+    </div>
+  </div>
+
+  <!-- 色選択メニュー -->
+  <div class="color-selection-menu" id="colorSelectionMenu">
+    <div class="color-selection-header">色を選択してください</div>
+    <div class="color-options">
+      <div class="color-option" data-color="red">
+        <div class="color-circle red"></div>
+        <span>🔴 Red</span>
+      </div>
+      <div class="color-option" data-color="pink">
+        <div class="color-circle pink"></div>
+        <span>🩷 Pink</span>
+      </div>
+      <div class="color-option" data-color="purple">
+        <div class="color-circle purple"></div>
+        <span>🟣 Purple</span>
+      </div>
+      <div class="color-option" data-color="blue">
+        <div class="color-circle blue"></div>
+        <span>🔵 Blue</span>
+      </div>
+      <div class="color-option" data-color="cyan">
+        <div class="color-circle cyan"></div>
+        <span>🩵 Cyan</span>
+      </div>
+      <div class="color-option" data-color="green">
+        <div class="color-circle green"></div>
+        <span>🟢 Green</span>
+      </div>
+      <div class="color-option" data-color="yellow">
+        <div class="color-circle yellow"></div>
+        <span>🟡 Yellow</span>
+      </div>
+      <div class="color-option" data-color="grey">
+        <div class="color-circle grey"></div>
+        <span>⚪ Grey</span>
+      </div>
+    </div>
+  </div>
   
   <script src="popup.js"></script>
 </body>

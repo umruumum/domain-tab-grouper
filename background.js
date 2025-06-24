@@ -9,18 +9,24 @@ let autoGroupEnabled = true;
 // 除外ドメインリスト
 let excludedDomains = [];
 
+// ドメイン色設定
+let domainColors = {};
+
 // 設定を読み込む関数
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains']);
+    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains', 'domainColors']);
     autoGroupEnabled = result.autoGroupEnabled !== false; // デフォルトはtrue
     excludedDomains = result.excludedDomains || []; // デフォルトは空配列
+    domainColors = result.domainColors || {}; // デフォルトは空オブジェクト
     console.log(`Auto-grouping loaded: ${autoGroupEnabled}`);
     console.log(`Excluded domains loaded: ${excludedDomains.length} domains`);
+    console.log(`Domain colors loaded: ${Object.keys(domainColors).length} domains`);
   } catch (error) {
     console.error('Error loading settings:', error);
     autoGroupEnabled = true;
     excludedDomains = [];
+    domainColors = {};
   }
 }
 
@@ -133,13 +139,22 @@ function mapColorToGroupColor(rgbColor) {
 
 // faviconベースでタブグループの色を取得
 async function getGroupColor(domain, faviconUrl = null, tabId = null) {
-  // キャッシュされた色があるかチェック
+  // 1. 手動設定色があるかチェック（最優先）
+  if (domainColors[domain]) {
+    const manualColor = domainColors[domain];
+    console.log(`Using manual color for ${domain}: ${manualColor}`);
+    domainColorCache.set(domain, manualColor);
+    return manualColor;
+  }
+  
+  // 2. キャッシュされた色があるかチェック
   if (domainColorCache.has(domain)) {
     return domainColorCache.get(domain);
   }
   
   let groupColor = 'blue'; // デフォルト色
   
+  // 3. favicon色抽出を試行
   if (faviconUrl && tabId) {
     try {
       const dominantColor = await extractDominantColorFromFavicon(faviconUrl, tabId);
@@ -152,7 +167,7 @@ async function getGroupColor(domain, faviconUrl = null, tabId = null) {
     }
   }
   
-  // フォールバック: ハッシュベースの色
+  // 4. フォールバック: ハッシュベースの色
   if (groupColor === 'blue' && !faviconUrl) {
     const colors = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'grey'];
     const hash = domain.split('').reduce((a, b) => {
@@ -165,6 +180,40 @@ async function getGroupColor(domain, faviconUrl = null, tabId = null) {
   // 色をキャッシュ
   domainColorCache.set(domain, groupColor);
   return groupColor;
+}
+
+// 既存のグループの色を更新する関数
+async function updateExistingGroupColor(domain, newColor = null) {
+  try {
+    console.log(`Updating existing group color for domain: ${domain}, newColor: ${newColor}`);
+    const groups = await chrome.tabGroups.query({});
+    console.log(`Found ${groups.length} total groups`);
+    
+    let updated = false;
+    for (const group of groups) {
+      console.log(`Checking group: ${group.title} (id: ${group.id})`);
+      if (group.title === domain) {
+        let color = newColor;
+        if (!color) {
+          // 色が指定されていない場合は再計算
+          const tabs = await chrome.tabs.query({ groupId: group.id });
+          const faviconTab = tabs.find(tab => tab.favIconUrl);
+          color = await getGroupColor(domain, faviconTab?.favIconUrl, faviconTab?.id);
+        }
+        
+        console.log(`Updating group ${group.id} to color: ${color}`);
+        await chrome.tabGroups.update(group.id, { color: color });
+        console.log(`Successfully updated group color for ${domain}: ${color}`);
+        updated = true;
+      }
+    }
+    
+    if (!updated) {
+      console.log(`No groups found for domain: ${domain}`);
+    }
+  } catch (error) {
+    console.error('Error updating existing group color:', error);
+  }
 }
 
 // 空のグループと単体タブのグループを削除する関数
@@ -284,11 +333,12 @@ async function regroupSingleTab(tabId, domain) {
       const faviconUrl = faviconTab?.favIconUrl;
       const groupColor = await getGroupColor(domain, faviconUrl, faviconTab?.id);
       
+      console.log(`Creating new group in regroupSingleTab for domain: ${domain}, color: ${groupColor}`);
       await chrome.tabGroups.update(groupId, {
         title: domain,
         color: groupColor
       });
-      console.log(`New group created for ${domain} with ${allTabIds.length} tabs`);
+      console.log(`New group created for ${domain} with ${allTabIds.length} tabs, title set to: ${domain}`);
     } else {
       console.log(`Single tab for ${domain}, not creating group`);
     }
@@ -377,10 +427,12 @@ async function groupTabsByDomainInWindow(windowId) {
           const faviconTab = domainTabs.find(tab => tab.favIconUrl);
           const groupColor = await getGroupColor(domain, faviconTab?.favIconUrl, faviconTab?.id);
           
+          console.log(`Creating new group for domain: ${domain}, title: ${groupTitle}, color: ${groupColor}`);
           await chrome.tabGroups.update(groupId, {
             title: groupTitle,
             color: groupColor
           });
+          console.log(`Successfully created group ${groupId} with title: ${groupTitle}`);
         }
       }
     }
@@ -448,7 +500,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true });
       } else if (message.action === 'addExcludedDomain') {
         const domain = message.domain;
-        if (domain && !excludedDomains.includes(domain)) {
+        console.log(`Adding excluded domain: "${domain}"`);
+        console.log(`Current excluded domains:`, excludedDomains);
+        console.log(`Domain exists check:`, excludedDomains.includes(domain));
+        
+        if (domain && domain.trim() !== '' && !excludedDomains.includes(domain)) {
           excludedDomains.push(domain);
           await chrome.storage.local.set({ excludedDomains: excludedDomains });
           console.log(`Domain excluded: ${domain}`);
@@ -456,7 +512,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await ungroupDomainTabs(domain);
           sendResponse({ success: true, excludedDomains: excludedDomains });
         } else {
-          sendResponse({ success: false, error: 'Domain already excluded or invalid' });
+          const reason = !domain || domain.trim() === '' ? 'Invalid domain' : 'Domain already excluded';
+          console.log(`Failed to exclude domain: ${reason}`);
+          sendResponse({ success: false, error: reason });
         }
       } else if (message.action === 'removeExcludedDomain') {
         const domain = message.domain;
@@ -475,6 +533,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       } else if (message.action === 'getExcludedDomains') {
         sendResponse({ success: true, excludedDomains: excludedDomains });
+      } else if (message.action === 'setDomainColor') {
+        const domain = message.domain;
+        const color = message.color;
+        console.log(`Setting domain color: "${domain}" -> "${color}"`);
+        console.log(`Current domain colors:`, domainColors);
+        
+        if (domain && color) {
+          domainColors[domain] = color;
+          await chrome.storage.local.set({ domainColors: domainColors });
+          console.log(`Domain color set: ${domain} -> ${color}`);
+          
+          // キャッシュをクリアして色を更新
+          domainColorCache.delete(domain);
+          
+          // 既存のグループの色を更新
+          await updateExistingGroupColor(domain, color);
+          
+          sendResponse({ success: true, domainColors: domainColors });
+        } else {
+          console.log(`Failed to set domain color: domain="${domain}", color="${color}"`);
+          sendResponse({ success: false, error: 'Invalid domain or color' });
+        }
+      } else if (message.action === 'removeDomainColor') {
+        const domain = message.domain;
+        if (domain && domainColors[domain]) {
+          delete domainColors[domain];
+          await chrome.storage.local.set({ domainColors: domainColors });
+          console.log(`Domain color removed: ${domain}`);
+          
+          // キャッシュをクリアして色をリセット
+          domainColorCache.delete(domain);
+          
+          // 既存のグループの色を再計算
+          await updateExistingGroupColor(domain);
+          
+          sendResponse({ success: true, domainColors: domainColors });
+        } else {
+          sendResponse({ success: false, error: 'Domain not found in color settings' });
+        }
+      } else if (message.action === 'getDomainColors') {
+        sendResponse({ success: true, domainColors: domainColors });
       }
     } catch (error) {
       console.error('Error in message handler:', error);
@@ -484,6 +583,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   return true; // 非同期レスポンスを示す
 });
+
+// Service Worker起動時の初期化
+(async () => {
+  await loadSettings();
+  console.log('Background script initialized');
+})();
 
 // 拡張機能の初期化時にグループ化を実行
 chrome.runtime.onStartup.addListener(async () => {
