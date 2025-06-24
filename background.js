@@ -66,14 +66,105 @@ function extractDomain(url) {
   }
 }
 
-// タブグループの色を循環的に取得
-function getGroupColor(domain) {
-  const colors = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'grey'];
-  const hash = domain.split('').reduce((a, b) => {
-    a = ((a << 5) - a) + b.charCodeAt(0);
-    return a & a;
-  }, 0);
-  return colors[Math.abs(hash) % colors.length];
+// ドメインごとの色キャッシュ
+const domainColorCache = new Map();
+
+// content scriptを使ってfaviconから主要色を抽出する関数
+async function extractDominantColorFromFavicon(faviconUrl, tabId) {
+  if (!faviconUrl || faviconUrl.startsWith('chrome://') || faviconUrl.startsWith('chrome-extension://')) {
+    return null;
+  }
+
+  try {
+    // content scriptに色抽出を依頼
+    const response = await chrome.tabs.sendMessage(tabId, {
+      action: 'extractFaviconColor',
+      faviconUrl: faviconUrl
+    });
+    
+    if (response && response.success && response.color) {
+      return response.color;
+    }
+    return null;
+  } catch (error) {
+    // content scriptが利用できない場合（chrome://ページなど）
+    console.log(`Content script not available for tab ${tabId}, using fallback`);
+    return null;
+  }
+}
+
+// RGB色をChrome拡張のグループカラーにマッピング
+function mapColorToGroupColor(rgbColor) {
+  if (!rgbColor) return 'blue'; // デフォルト色
+  
+  const { r, g, b } = rgbColor;
+  
+  // Chrome拡張のグループカラーとその代表RGB値
+  const groupColors = {
+    'red': { r: 255, g: 67, b: 54 },
+    'pink': { r: 233, g: 30, b: 99 },
+    'purple': { r: 156, g: 39, b: 176 },
+    'blue': { r: 33, g: 150, b: 243 },
+    'cyan': { r: 0, g: 188, b: 212 },
+    'green': { r: 76, g: 175, b: 80 },
+    'yellow': { r: 255, g: 235, b: 59 },
+    'grey': { r: 158, g: 158, b: 158 }
+  };
+  
+  let bestMatch = 'blue';
+  let minDistance = Infinity;
+  
+  for (const [colorName, colorRgb] of Object.entries(groupColors)) {
+    // ユークリッド距離を計算
+    const distance = Math.sqrt(
+      Math.pow(r - colorRgb.r, 2) +
+      Math.pow(g - colorRgb.g, 2) +
+      Math.pow(b - colorRgb.b, 2)
+    );
+    
+    if (distance < minDistance) {
+      minDistance = distance;
+      bestMatch = colorName;
+    }
+  }
+  
+  return bestMatch;
+}
+
+// faviconベースでタブグループの色を取得
+async function getGroupColor(domain, faviconUrl = null, tabId = null) {
+  // キャッシュされた色があるかチェック
+  if (domainColorCache.has(domain)) {
+    return domainColorCache.get(domain);
+  }
+  
+  let groupColor = 'blue'; // デフォルト色
+  
+  if (faviconUrl && tabId) {
+    try {
+      const dominantColor = await extractDominantColorFromFavicon(faviconUrl, tabId);
+      if (dominantColor) {
+        groupColor = mapColorToGroupColor(dominantColor);
+        console.log(`Extracted color for ${domain}: RGB(${dominantColor.r},${dominantColor.g},${dominantColor.b}) -> ${groupColor}`);
+      }
+    } catch (error) {
+      console.error(`Error getting favicon color for ${domain}:`, error);
+    }
+  }
+  
+  // フォールバック: ハッシュベースの色
+  if (groupColor === 'blue' && !faviconUrl) {
+    const colors = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'grey'];
+    const hash = domain.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    groupColor = colors[Math.abs(hash) % colors.length];
+  }
+  
+  // 色をキャッシュ
+  domainColorCache.set(domain, groupColor);
+  return groupColor;
 }
 
 // 空のグループと単体タブのグループを削除する関数
@@ -188,9 +279,14 @@ async function regroupSingleTab(tabId, domain) {
       const allTabIds = [tabId, ...sameDomainTabs.map(tab => tab.id)];
       const groupId = await chrome.tabs.group({ tabIds: allTabIds });
       
+      // faviconURLを取得（最初に見つかったタブから）
+      const faviconTab = targetTab.favIconUrl ? targetTab : sameDomainTabs.find(tab => tab.favIconUrl);
+      const faviconUrl = faviconTab?.favIconUrl;
+      const groupColor = await getGroupColor(domain, faviconUrl, faviconTab?.id);
+      
       await chrome.tabGroups.update(groupId, {
         title: domain,
-        color: getGroupColor(domain)
+        color: groupColor
       });
       console.log(`New group created for ${domain} with ${allTabIds.length} tabs`);
     } else {
@@ -277,9 +373,13 @@ async function groupTabsByDomainInWindow(windowId) {
           const tabIds = domainTabs.map(tab => tab.id);
           const groupId = await chrome.tabs.group({ tabIds });
           
+          // faviconURLを取得（最初に見つかったタブから）
+          const faviconTab = domainTabs.find(tab => tab.favIconUrl);
+          const groupColor = await getGroupColor(domain, faviconTab?.favIconUrl, faviconTab?.id);
+          
           await chrome.tabGroups.update(groupId, {
             title: groupTitle,
-            color: getGroupColor(domain)
+            color: groupColor
           });
         }
       }
