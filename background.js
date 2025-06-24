@@ -325,48 +325,57 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 // ポップアップからのメッセージをリッスン
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  if (message.action === 'groupTabs') {
-    await groupTabsByDomain();
-    sendResponse({ success: true });
-  } else if (message.action === 'groupTabsInWindow') {
-    await groupTabsByDomainInWindow(message.windowId);
-    sendResponse({ success: true });
-  } else if (message.action === 'toggleAutoGroup') {
-    autoGroupEnabled = message.enabled;
-    await chrome.storage.local.set({ autoGroupEnabled: message.enabled });
-    console.log(`Auto-grouping ${autoGroupEnabled ? 'enabled' : 'disabled'}`);
-    sendResponse({ success: true });
-  } else if (message.action === 'addExcludedDomain') {
-    const domain = message.domain;
-    if (domain && !excludedDomains.includes(domain)) {
-      excludedDomains.push(domain);
-      await chrome.storage.local.set({ excludedDomains: excludedDomains });
-      console.log(`Domain excluded: ${domain}`);
-      // 既存のグループを解除してから再グループ化
-      await ungroupDomainTabs(domain);
-      sendResponse({ success: true, excludedDomains: excludedDomains });
-    } else {
-      sendResponse({ success: false, error: 'Domain already excluded or invalid' });
-    }
-  } else if (message.action === 'removeExcludedDomain') {
-    const domain = message.domain;
-    const index = excludedDomains.indexOf(domain);
-    if (index > -1) {
-      excludedDomains.splice(index, 1);
-      await chrome.storage.local.set({ excludedDomains: excludedDomains });
-      console.log(`Domain unexcluded: ${domain}`);
-      // 再グループ化を実行
-      if (autoGroupEnabled) {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  (async () => {
+    try {
+      if (message.action === 'groupTabs') {
         await groupTabsByDomain();
+        sendResponse({ success: true });
+      } else if (message.action === 'groupTabsInWindow') {
+        await groupTabsByDomainInWindow(message.windowId);
+        sendResponse({ success: true });
+      } else if (message.action === 'toggleAutoGroup') {
+        autoGroupEnabled = message.enabled;
+        await chrome.storage.local.set({ autoGroupEnabled: message.enabled });
+        console.log(`Auto-grouping ${autoGroupEnabled ? 'enabled' : 'disabled'}`);
+        sendResponse({ success: true });
+      } else if (message.action === 'addExcludedDomain') {
+        const domain = message.domain;
+        if (domain && !excludedDomains.includes(domain)) {
+          excludedDomains.push(domain);
+          await chrome.storage.local.set({ excludedDomains: excludedDomains });
+          console.log(`Domain excluded: ${domain}`);
+          // 既存のグループを解除してから再グループ化
+          await ungroupDomainTabs(domain);
+          sendResponse({ success: true, excludedDomains: excludedDomains });
+        } else {
+          sendResponse({ success: false, error: 'Domain already excluded or invalid' });
+        }
+      } else if (message.action === 'removeExcludedDomain') {
+        const domain = message.domain;
+        const index = excludedDomains.indexOf(domain);
+        if (index > -1) {
+          excludedDomains.splice(index, 1);
+          await chrome.storage.local.set({ excludedDomains: excludedDomains });
+          console.log(`Domain unexcluded: ${domain}`);
+          // 再グループ化を実行
+          if (autoGroupEnabled) {
+            await groupTabsByDomain();
+          }
+          sendResponse({ success: true, excludedDomains: excludedDomains });
+        } else {
+          sendResponse({ success: false, error: 'Domain not found in excluded list' });
+        }
+      } else if (message.action === 'getExcludedDomains') {
+        sendResponse({ success: true, excludedDomains: excludedDomains });
       }
-      sendResponse({ success: true, excludedDomains: excludedDomains });
-    } else {
-      sendResponse({ success: false, error: 'Domain not found in excluded list' });
+    } catch (error) {
+      console.error('Error in message handler:', error);
+      sendResponse({ success: false, error: error.message });
     }
-  } else if (message.action === 'getExcludedDomains') {
-    sendResponse({ success: true, excludedDomains: excludedDomains });
-  }
+  })();
+  
+  return true; // 非同期レスポンスを示す
 });
 
 // 拡張機能の初期化時にグループ化を実行
