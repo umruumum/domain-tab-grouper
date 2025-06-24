@@ -31,6 +31,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `chrome.tabs` と `chrome.tabGroups` APIが必要
 - サービスワーカーは永続的でないため、イベント駆動で動作
 - ドメイン抽出時にchrome://やchrome-extension://は除外
+- 開発する際はmainをpullしてから開発してください
 - 機能を追加したり、修正するときは必ずブランチを分けてください
   - 新機能: feature/hogehoge
   - 修正: fix/fugafuga
