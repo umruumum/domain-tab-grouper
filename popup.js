@@ -46,6 +46,11 @@ async function updateGroupList() {
     const currentWindow = await chrome.windows.getCurrent();
     const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
     const groupList = document.getElementById('groupList');
+    
+    // スクロール位置を保存
+    const scrollTop = groupList.scrollTop;
+    
+    // 既存の内容をクリア
     groupList.innerHTML = '';
     
     if (groups.length === 0) {
@@ -66,6 +71,9 @@ async function updateGroupList() {
       
       groupList.appendChild(groupElement);
     }
+    
+    // スクロール位置を復元
+    groupList.scrollTop = scrollTop;
   } catch (error) {
     console.error('Error updating group list:', error);
     showStatus('エラーが発生しました');
@@ -176,6 +184,9 @@ async function updateExcludedDomainsList() {
       const excludedList = document.getElementById('excludedList');
       const excludedDomains = response.excludedDomains;
       
+      // スクロール位置を保存
+      const scrollTop = excludedList.scrollTop;
+      
       if (excludedDomains.length === 0) {
         excludedList.innerHTML = '<div class="empty-state">除外ドメインはありません</div>';
       } else {
@@ -191,6 +202,9 @@ async function updateExcludedDomainsList() {
           btn.addEventListener('click', () => removeExcludedDomain(btn.dataset.domain));
         });
       }
+      
+      // スクロール位置を復元
+      excludedList.scrollTop = scrollTop;
     }
   } catch (error) {
     console.error('Error updating excluded domains list:', error);
@@ -348,8 +362,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
-  // 定期的にグループリストを更新
-  setInterval(updateGroupList, 2000);
+  // 定期的にグループリストを更新（頻度を下げてUX改善）
+  setInterval(updateGroupList, 5000);
   
   // 初期ステータスを設定
   showStatus(settings.autoGroupEnabled ? '自動グループ化が有効です' : '自動グループ化が無効です');
