@@ -46,6 +46,11 @@ async function updateGroupList() {
     const currentWindow = await chrome.windows.getCurrent();
     const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
     const groupList = document.getElementById('groupList');
+    
+    // スクロール位置を保存
+    const scrollTop = groupList.scrollTop;
+    
+    // 既存の内容をクリア
     groupList.innerHTML = '';
     
     if (groups.length === 0) {
@@ -66,6 +71,9 @@ async function updateGroupList() {
       
       groupList.appendChild(groupElement);
     }
+    
+    // スクロール位置を復元
+    groupList.scrollTop = scrollTop;
   } catch (error) {
     console.error('Error updating group list:', error);
     showStatus('エラーが発生しました');
@@ -176,6 +184,9 @@ async function updateExcludedDomainsList() {
       const excludedList = document.getElementById('excludedList');
       const excludedDomains = response.excludedDomains;
       
+      // スクロール位置を保存
+      const scrollTop = excludedList.scrollTop;
+      
       if (excludedDomains.length === 0) {
         excludedList.innerHTML = '<div class="empty-state">除外ドメインはありません</div>';
       } else {
@@ -191,6 +202,9 @@ async function updateExcludedDomainsList() {
           btn.addEventListener('click', () => removeExcludedDomain(btn.dataset.domain));
         });
       }
+      
+      // スクロール位置を復元
+      excludedList.scrollTop = scrollTop;
     }
   } catch (error) {
     console.error('Error updating excluded domains list:', error);
@@ -348,8 +362,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
-  // 定期的にグループリストを更新
-  setInterval(updateGroupList, 2000);
+  // グループ変更を監視してリアルタイム更新
+  let currentGroupState = null;
+  
+  async function checkGroupChanges() {
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
+      
+      // グループごとのタブ数も含めて状態をチェック
+      const groupStatePromises = groups.map(async (group) => {
+        const tabs = await chrome.tabs.query({ groupId: group.id });
+        return {
+          id: group.id,
+          title: group.title,
+          color: group.color,
+          tabCount: tabs.length
+        };
+      });
+      
+      const groupStates = await Promise.all(groupStatePromises);
+      const newGroupState = JSON.stringify(groupStates);
+      
+      if (currentGroupState !== newGroupState) {
+        currentGroupState = newGroupState;
+        await updateGroupList();
+      }
+    } catch (error) {
+      console.error('Error checking group changes:', error);
+    }
+  }
+  
+  // 初期状態を設定
+  checkGroupChanges();
+  
+  // 軽量な変更検知（1秒間隔）
+  setInterval(checkGroupChanges, 1000);
   
   // 初期ステータスを設定
   showStatus(settings.autoGroupEnabled ? '自動グループ化が有効です' : '自動グループ化が無効です');
