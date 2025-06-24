@@ -362,8 +362,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
-  // 定期的にグループリストを更新（頻度を下げてUX改善）
-  setInterval(updateGroupList, 5000);
+  // グループ変更を監視してリアルタイム更新
+  let currentGroupState = null;
+  
+  async function checkGroupChanges() {
+    try {
+      const currentWindow = await chrome.windows.getCurrent();
+      const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
+      
+      // グループごとのタブ数も含めて状態をチェック
+      const groupStatePromises = groups.map(async (group) => {
+        const tabs = await chrome.tabs.query({ groupId: group.id });
+        return {
+          id: group.id,
+          title: group.title,
+          color: group.color,
+          tabCount: tabs.length
+        };
+      });
+      
+      const groupStates = await Promise.all(groupStatePromises);
+      const newGroupState = JSON.stringify(groupStates);
+      
+      if (currentGroupState !== newGroupState) {
+        currentGroupState = newGroupState;
+        await updateGroupList();
+      }
+    } catch (error) {
+      console.error('Error checking group changes:', error);
+    }
+  }
+  
+  // 初期状態を設定
+  checkGroupChanges();
+  
+  // 軽量な変更検知（1秒間隔）
+  setInterval(checkGroupChanges, 1000);
   
   // 初期ステータスを設定
   showStatus(settings.autoGroupEnabled ? '自動グループ化が有効です' : '自動グループ化が無効です');
