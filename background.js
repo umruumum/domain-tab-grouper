@@ -76,20 +76,25 @@ function getGroupColor(domain) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-// 空のグループを削除する関数
-async function removeEmptyGroups() {
+// 空のグループと単体タブのグループを削除する関数
+async function removeEmptyAndSingleTabGroups() {
   try {
     const groups = await chrome.tabGroups.query({});
     
     for (const group of groups) {
       const tabsInGroup = await chrome.tabs.query({ groupId: group.id });
+      
       if (tabsInGroup.length === 0) {
         // グループが空の場合は削除（自動的に削除されるはず）
         console.log(`Empty group removed: ${group.title}`);
+      } else if (tabsInGroup.length === 1) {
+        // 単体タブのグループは解除
+        await chrome.tabs.ungroup([tabsInGroup[0].id]);
+        console.log(`Single tab group ungrouped: ${group.title}`);
       }
     }
   } catch (error) {
-    console.error('Error removing empty groups:', error);
+    console.error('Error removing empty and single tab groups:', error);
   }
 }
 
@@ -280,8 +285,8 @@ async function groupTabsByDomainInWindow(windowId) {
       }
     }
     
-    // 空のグループを削除
-    await removeEmptyGroups();
+    // 空のグループと単体タブのグループを削除
+    await removeEmptyAndSingleTabGroups();
   } catch (error) {
     console.error('Error grouping tabs in window:', error);
   }
@@ -396,12 +401,17 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 // タブが削除された時のイベントリスナー
-chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   // ドメイン履歴からタブを削除
   tabDomainHistory.delete(tabId);
   
-  // 自動グループ化が有効な場合のみ再実行
+  // 自動グループ化が有効な場合のみ処理
   if (autoGroupEnabled) {
-    setTimeout(() => groupTabsByDomain(), 100);
+    // 単体タブのグループをチェックして解除
+    setTimeout(async () => {
+      await removeEmptyAndSingleTabGroups();
+      // 必要に応じて再グループ化
+      await groupTabsByDomain();
+    }, 100);
   }
 });
