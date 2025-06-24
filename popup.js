@@ -172,7 +172,7 @@ async function toggleAutoGroup() {
 async function updateExcludedDomainsList() {
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getExcludedDomains' });
-    if (response.success) {
+    if (response && response.success) {
       const excludedList = document.getElementById('excludedList');
       const excludedDomains = response.excludedDomains;
       
@@ -220,12 +220,12 @@ async function addExcludedDomain(domain) {
       domain: domain 
     });
     
-    if (response.success) {
+    if (response && response.success) {
       showStatus(`${domain} を除外しました`);
       await updateExcludedDomainsList();
       document.getElementById('domainInput').value = '';
     } else {
-      showStatus(response.error || 'ドメインの追加に失敗しました');
+      showStatus((response && response.error) || 'ドメインの追加に失敗しました');
     }
   } catch (error) {
     console.error('Error adding excluded domain:', error);
@@ -243,12 +243,12 @@ async function removeExcludedDomain(domain) {
       domain: domain 
     });
     
-    if (response.success) {
+    if (response && response.success) {
       showStatus(`${domain} の除外を解除しました`);
       await updateExcludedDomainsList();
       await updateGroupList();
     } else {
-      showStatus(response.error || 'ドメインの削除に失敗しました');
+      showStatus((response && response.error) || 'ドメインの削除に失敗しました');
     }
   } catch (error) {
     console.error('Error removing excluded domain:', error);
