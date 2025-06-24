@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .header h1 {
+      font-size: 18px;
+      margin: 0;
+      color: #333;
+    }
+    
+    .controls {
+      margin-bottom: 20px;
+    }
+    
+    .btn {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    
+    .btn:hover {
+      background-color: #3367d6;
+    }
+    
+    .btn.secondary {
+      background-color: #f8f9fa;
+      color: #333;
+      border: 1px solid #dadce0;
+    }
+    
+    .btn.secondary:hover {
+      background-color: #f1f3f4;
+    }
+    
+    .group-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .group-item {
+      padding: 8px 12px;
+      margin-bottom: 4px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      border-left: 4px solid #4285f4;
+      font-size: 13px;
+    }
+    
+    .group-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    
+    .group-count {
+      color: #5f6368;
+      font-size: 12px;
+    }
+    
+    .status {
+      text-align: center;
+      padding: 10px;
+      font-size: 12px;
+      color: #5f6368;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    
+    .toggle-container {
+      margin-bottom: 15px;
+      padding: 12px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e8eaed;
+    }
+    
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .toggle-checkbox {
+      display: none;
+    }
+    
+    .toggle-slider {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background-color: #ccc;
+      border-radius: 24px;
+      margin-right: 12px;
+      transition: background-color 0.3s;
+    }
+    
+    .toggle-slider:before {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .toggle-checkbox:checked + .toggle-slider {
+      background-color: #4285f4;
+    }
+    
+    .toggle-checkbox:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+    
+    .toggle-text {
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Domain Tab Grouper</h1>
+  </div>
+  
+  <div class="controls">
+    <div class="toggle-container">
+      <label class="toggle-label">
+        <input type="checkbox" id="autoGroupToggle" class="toggle-checkbox">
+        <span class="toggle-slider"></span>
+        <span class="toggle-text">自動グループ化</span>
+      </label>
+    </div>
+    <button id="groupTabs" class="btn">手動でグループ化</button>
+    <button id="ungroupAll" class="btn secondary">すべてのグループを解除</button>
+  </div>
+  
+  <div class="group-list" id="groupList"></div>
+  
+  <div class="status" id="status">準備完了</div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

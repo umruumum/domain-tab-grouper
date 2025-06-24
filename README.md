@@ -1,0 +1,140 @@
+# Domain Tab Grouper 🗂️
+
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-blue.svg)](https://developer.chrome.com/docs/extensions/)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/mv3/intro/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+ドメインベースでタブを自動グループ化するChrome拡張機能です。ページ遷移を検知して動的にタブをグループ化し、ブラウジング体験を向上させます。
+
+![Demo](docs/demo.gif)
+
+## ✨ 主な機能
+
+### 🔄 自動グループ化
+- **リアルタイム検知**: タブ作成・ページ遷移を即座に検知
+- **単体タブ対応**: 単一のタブでもドメインベースでグループ化
+- **スマート移動**: ドメイン変更時に適切なグループへ自動移動
+
+### 🎨 視覚的管理
+- **色分け表示**: ドメインごとに異なる色でグループを識別
+- **クリーンUI**: 直感的で使いやすいポップアップインターフェース
+
+### ⚙️ 柔軟な制御
+- **ON/OFF切り替え**: 自動グループ化の有効・無効をワンクリック
+- **手動操作**: いつでも手動でグループ化・解除が可能
+- **設定永続化**: 設定は自動保存され、再起動後も維持
+
+## 🚀 インストール方法
+
+### 開発版（推奨）
+1. このリポジトリをクローンまたはダウンロード
+```bash
+git clone https://github.com/yourusername/domain-tab-grouper.git
+cd domain-tab-grouper
+```
+
+2. Chromeの拡張機能ページを開く
+```
+chrome://extensions/
+```
+
+3. 右上の「デベロッパーモード」を有効化
+
+4. 「パッケージ化されていない拡張機能を読み込む」をクリックしてプロジェクトフォルダを選択
+
+## 📖 使用方法
+
+### 基本操作
+1. **自動グループ化**: 拡張機能をインストールすると自動的に開始
+2. **手動制御**: ツールバーアイコンをクリックしてポップアップを表示
+3. **ON/OFF**: トグルスイッチで自動グループ化を制御
+
+### 具体例
+```
+例: google.com のタブが3つある場合
+→ 「google.com」という名前のグループが自動作成される
+
+例: あるタブで google.com から yahoo.com に遷移
+→ 自動的に google.com グループから除外され、yahoo.com グループに移動
+```
+
+## 🏗️ アーキテクチャ
+
+### ファイル構成
+```
+domain-tab-grouper/
+├── manifest.json          # 拡張機能設定
+├── background.js          # メインロジック（Service Worker）
+├── popup.html             # ポップアップUI
+├── popup.js              # UI制御スクリプト
+├── icons/                # アイコンファイル
+└── README.md             # このファイル
+```
+
+### 主要コンポーネント
+
+#### 🔧 background.js
+- **タブイベント監視**: 作成・更新・削除イベントをリッスン
+- **ドメイン解析**: URLからドメインを抽出
+- **グループ管理**: 動的なグループ作成・更新・削除
+- **設定管理**: ON/OFF状態の永続化
+
+#### 🎯 popup.js
+- **UI制御**: トグルスイッチ・ボタンの制御
+- **リアルタイム表示**: 現在のグループ状態を表示
+- **設定同期**: バックグラウンドスクリプトとの通信
+
+## 🛠️ 技術仕様
+
+- **Manifest Version**: 3.0
+- **必要な権限**: `tabs`, `tabGroups`, `activeTab`, `storage`
+- **対応ブラウザ**: Chrome（Chromium系ブラウザでも動作可能）
+
+## 🔧 開発者向け情報
+
+### デバッグ方法
+1. `chrome://extensions/` で拡張機能の「詳細」をクリック
+2. 「バックグラウンドページを検査」でデベロッパーツールを開く
+3. コンソールでログを確認
+
+### カスタマイズ
+```javascript
+// グループの色をカスタマイズ
+function getGroupColor(domain) {
+  const colors = ['blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'grey'];
+  // カスタムロジックをここに追加
+}
+```
+
+## 🎯 今後の予定
+
+- [ ] サブドメイン単位でのグループ化オプション
+- [ ] グループ名のカスタマイズ機能
+- [ ] 除外ドメイン設定
+- [ ] エクスポート・インポート機能
+- [ ] ショートカットキー対応
+
+## 🤝 コントリビューション
+
+コントリビューションを歓迎します！
+
+1. このリポジトリをフォーク
+2. フィーチャーブランチを作成 (`git checkout -b feature/amazing-feature`)
+3. 変更をコミット (`git commit -m 'Add amazing feature'`)
+4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
+5. プルリクエストを作成
+
+## 📝 ライセンス
+
+このプロジェクトは MIT ライセンスの下で公開されています。詳細は [LICENSE](LICENSE) ファイルをご覧ください。
+
+## 🙏 謝辞
+
+- Chrome Extensions API の豊富な機能
+- オープンソースコミュニティからのインスピレーション
+
+---
+
+<div align="center">
+Made with ❤️ for better browsing experience
+</div>
