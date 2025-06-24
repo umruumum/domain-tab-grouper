@@ -268,6 +268,7 @@ async function excludeCurrentTabDomain() {
   }
 }
 
+
 // ドメインからホスト名を抽出する関数
 function extractDomain(url) {
   try {
