@@ -22,13 +22,14 @@ async function saveSettings(settings) {
 // 設定を読み込む関数
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['autoGroupEnabled']);
+    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains']);
     return {
-      autoGroupEnabled: result.autoGroupEnabled !== false // デフォルトはtrue
+      autoGroupEnabled: result.autoGroupEnabled !== false, // デフォルトはtrue
+      excludedDomains: result.excludedDomains || [] // デフォルトは空配列
     };
   } catch (error) {
     console.error('Error loading settings:', error);
-    return { autoGroupEnabled: true };
+    return { autoGroupEnabled: true, excludedDomains: [] };
   }
 }
 
@@ -157,6 +158,128 @@ async function toggleAutoGroup() {
   }
 }
 
+// 除外ドメインリストを更新する関数
+async function updateExcludedDomainsList() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getExcludedDomains' });
+    if (response.success) {
+      const excludedList = document.getElementById('excludedList');
+      const excludedDomains = response.excludedDomains;
+      
+      if (excludedDomains.length === 0) {
+        excludedList.innerHTML = '<div class="empty-state">除外ドメインはありません</div>';
+      } else {
+        excludedList.innerHTML = excludedDomains.map(domain => `
+          <div class="excluded-item">
+            <span class="excluded-domain">${domain}</span>
+            <button class="remove-btn" data-domain="${domain}">削除</button>
+          </div>
+        `).join('');
+        
+        // 削除ボタンのイベントリスナーを追加
+        excludedList.querySelectorAll('.remove-btn').forEach(btn => {
+          btn.addEventListener('click', () => removeExcludedDomain(btn.dataset.domain));
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error updating excluded domains list:', error);
+  }
+}
+
+// ドメインを除外リストに追加する関数
+async function addExcludedDomain(domain) {
+  try {
+    if (!domain || domain.trim() === '') {
+      showStatus('ドメインを入力してください');
+      return;
+    }
+    
+    domain = domain.trim().toLowerCase();
+    
+    // 簡単なバリデーション
+    if (!isValidDomain(domain)) {
+      showStatus('無効なドメイン形式です');
+      return;
+    }
+    
+    showStatus('ドメインを除外中...');
+    
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'addExcludedDomain', 
+      domain: domain 
+    });
+    
+    if (response.success) {
+      showStatus(`${domain} を除外しました`);
+      await updateExcludedDomainsList();
+      document.getElementById('domainInput').value = '';
+    } else {
+      showStatus(response.error || 'ドメインの追加に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error adding excluded domain:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// ドメインを除外リストから削除する関数
+async function removeExcludedDomain(domain) {
+  try {
+    showStatus('ドメインの除外を解除中...');
+    
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'removeExcludedDomain', 
+      domain: domain 
+    });
+    
+    if (response.success) {
+      showStatus(`${domain} の除外を解除しました`);
+      await updateExcludedDomainsList();
+      await updateGroupList();
+    } else {
+      showStatus(response.error || 'ドメインの削除に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error removing excluded domain:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// 現在のタブのドメインを除外リストに追加する関数
+async function excludeCurrentTabDomain() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url) {
+      showStatus('現在のタブのドメインを取得できません');
+      return;
+    }
+    
+    const domain = extractDomain(tab.url);
+    if (!domain) {
+      showStatus('このタブはグループ化対象外です');
+      return;
+    }
+    
+    await addExcludedDomain(domain);
+  } catch (error) {
+    console.error('Error excluding current tab domain:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// ドメインの形式をチェックする関数
+function isValidDomain(domain) {
+  // ワイルドカード形式 (*.example.com) の場合
+  if (domain.startsWith('*.')) {
+    domain = domain.slice(2);
+  }
+  
+  // 基本的なドメイン形式チェック
+  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  return domainRegex.test(domain);
+}
+
 // イベントリスナーを設定
 document.addEventListener('DOMContentLoaded', async () => {
   // 設定を読み込んでトグルスイッチを初期化
@@ -164,8 +287,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toggle = document.getElementById('autoGroupToggle');
   toggle.checked = settings.autoGroupEnabled;
   
-  // 初期化時にグループリストを更新
+  // 初期化時にグループリストと除外ドメインリストを更新
   updateGroupList();
+  updateExcludedDomainsList();
   
   // ボタンのイベントリスナー
   document.getElementById('groupTabs').addEventListener('click', groupTabs);
@@ -173,6 +297,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // トグルスイッチのイベントリスナー
   toggle.addEventListener('change', toggleAutoGroup);
+  
+  // 除外ドメイン関連のイベントリスナー
+  document.getElementById('addDomainBtn').addEventListener('click', () => {
+    const domain = document.getElementById('domainInput').value;
+    addExcludedDomain(domain);
+  });
+  
+  document.getElementById('excludeCurrentBtn').addEventListener('click', excludeCurrentTabDomain);
+  
+  // Enterキーでドメイン追加
+  document.getElementById('domainInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const domain = document.getElementById('domainInput').value;
+      addExcludedDomain(domain);
+    }
+  });
   
   // 定期的にグループリストを更新
   setInterval(updateGroupList, 2000);
