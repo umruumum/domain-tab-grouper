@@ -3,70 +3,57 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    paths:
+      - "**.js"
+      - "**.html"
+      - "**.css"
+      - "**.json"
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # Skip review for owner/admin PRs to avoid unnecessary API usage
+    if: github.event.pull_request.author_association != 'OWNER'
 
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
-      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Use Claude Sonnet 4 (latest stable model)
+          model: "claude-3-5-sonnet-20241022"
 
-          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
-          # model: "claude-opus-4-20250514"
-
-          # Direct prompt for automated review (no @claude mention needed)
+          # Chrome extension specific review prompt
           direct_prompt: |
-            あなたは優秀な編集者です。PRの内容を確認し、以下の点についてレビューしてください。
-            - 誤字脱字や文法の誤り
-            - 内容の不明瞭な箇所
-            - 記事の構成や流れ
+            このChrome拡張機能のPRをレビューしてください。以下の点に特に注意して確認してください：
 
-            Be constructive and helpful in your feedback.
+            **Chrome拡張機能固有の観点：**
+            - Manifest V3の仕様に準拠しているか
+            - セキュリティ上の問題（CSP、権限設定など）
+            - バックグラウンドスクリプトのサービスワーカー実装
+            - コンテンツスクリプトやポップアップスクリプトの実装
 
-          # Optional: Customize review based on file types
-          # direct_prompt: |
-          #   Review this PR focusing on:
-          #   - For TypeScript files: Type safety and proper interface usage
-          #   - For API endpoints: Security, input validation, and error handling
-          #   - For React components: Performance, accessibility, and best practices
-          #   - For tests: Coverage, edge cases, and test quality
+            **コード品質：**
+            - JavaScriptのベストプラクティス
+            - エラーハンドリングの適切性
+            - 非同期処理の正しい実装
+            - メモリリークの可能性
 
-          # Optional: Different prompts for different authors
-          # direct_prompt: |
-          #   ${{ github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' &&
-          #   'Welcome! Please review this PR from a first-time contributor. Be encouraging and provide detailed explanations for any suggestions.' ||
-          #   'Please provide a thorough code review focusing on our coding standards and best practices.' }}
+            **機能面：**
+            - ユーザビリティの向上
+            - パフォーマンスへの影響
+            - 既存機能との互換性
 
-          # Optional: Add specific tools for running tests or linting
-          # allowed_tools: "Bash(npm run test),Bash(npm run lint),Bash(npm run typecheck)"
-
-          # Optional: Skip review for certain conditions
-          # if: |
-          #   !contains(github.event.pull_request.title, '[skip-review]') &&
-          #   !contains(github.event.pull_request.title, '[WIP]')
+            日本語でフィードバックを提供してください。建設的で具体的な改善提案をお願いします。
