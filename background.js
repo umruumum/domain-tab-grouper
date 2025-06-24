@@ -6,16 +6,34 @@ const tabDomainHistory = new Map();
 // 自動グループ化の設定状態
 let autoGroupEnabled = true;
 
+// 除外ドメインリスト
+let excludedDomains = [];
+
 // 設定を読み込む関数
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['autoGroupEnabled']);
+    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains']);
     autoGroupEnabled = result.autoGroupEnabled !== false; // デフォルトはtrue
+    excludedDomains = result.excludedDomains || []; // デフォルトは空配列
     console.log(`Auto-grouping loaded: ${autoGroupEnabled}`);
+    console.log(`Excluded domains loaded: ${excludedDomains.length} domains`);
   } catch (error) {
     console.error('Error loading settings:', error);
     autoGroupEnabled = true;
+    excludedDomains = [];
   }
+}
+
+// ドメインが除外リストに含まれているかチェックする関数
+function isDomainExcluded(domain) {
+  if (!domain) return false;
+  return excludedDomains.some(excludedDomain => {
+    // 完全一致チェック
+    if (domain === excludedDomain) return true;
+    // サブドメインチェック（*.example.com形式）
+    if (excludedDomain.startsWith('*.') && domain.endsWith(excludedDomain.slice(1))) return true;
+    return false;
+  });
 }
 
 // ドメインからホスト名を抽出する関数
@@ -34,7 +52,14 @@ function extractDomain(url) {
       return null;
     }
     
-    return urlObj.hostname;
+    const domain = urlObj.hostname;
+    
+    // 除外ドメインリストに含まれている場合はnullを返す
+    if (isDomainExcluded(domain)) {
+      return null;
+    }
+    
+    return domain;
   } catch (error) {
     console.error('Invalid URL:', url);
     return null;
@@ -65,6 +90,28 @@ async function removeEmptyGroups() {
     }
   } catch (error) {
     console.error('Error removing empty groups:', error);
+  }
+}
+
+// 特定ドメインのタブをグループから解除する関数
+async function ungroupDomainTabs(domain) {
+  try {
+    const groups = await chrome.tabGroups.query({});
+    
+    for (const group of groups) {
+      if (group.title === domain) {
+        const tabsInGroup = await chrome.tabs.query({ groupId: group.id });
+        const tabIds = tabsInGroup.map(tab => tab.id);
+        
+        if (tabIds.length > 0) {
+          await chrome.tabs.ungroup(tabIds);
+          console.log(`Ungrouped ${tabIds.length} tabs from ${domain} group`);
+        }
+        break;
+      }
+    }
+  } catch (error) {
+    console.error('Error ungrouping domain tabs:', error);
   }
 }
 
@@ -266,6 +313,35 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     await chrome.storage.local.set({ autoGroupEnabled: message.enabled });
     console.log(`Auto-grouping ${autoGroupEnabled ? 'enabled' : 'disabled'}`);
     sendResponse({ success: true });
+  } else if (message.action === 'addExcludedDomain') {
+    const domain = message.domain;
+    if (domain && !excludedDomains.includes(domain)) {
+      excludedDomains.push(domain);
+      await chrome.storage.local.set({ excludedDomains: excludedDomains });
+      console.log(`Domain excluded: ${domain}`);
+      // 既存のグループを解除してから再グループ化
+      await ungroupDomainTabs(domain);
+      sendResponse({ success: true, excludedDomains: excludedDomains });
+    } else {
+      sendResponse({ success: false, error: 'Domain already excluded or invalid' });
+    }
+  } else if (message.action === 'removeExcludedDomain') {
+    const domain = message.domain;
+    const index = excludedDomains.indexOf(domain);
+    if (index > -1) {
+      excludedDomains.splice(index, 1);
+      await chrome.storage.local.set({ excludedDomains: excludedDomains });
+      console.log(`Domain unexcluded: ${domain}`);
+      // 再グループ化を実行
+      if (autoGroupEnabled) {
+        await groupTabsByDomain();
+      }
+      sendResponse({ success: true, excludedDomains: excludedDomains });
+    } else {
+      sendResponse({ success: false, error: 'Domain not found in excluded list' });
+    }
+  } else if (message.action === 'getExcludedDomains') {
+    sendResponse({ success: true, excludedDomains: excludedDomains });
   }
 });
 

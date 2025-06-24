@@ -139,6 +139,97 @@
     .toggle-text {
       color: #333;
     }
+    
+    .excluded-domains-section {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e8eaed;
+    }
+    
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    
+    .domain-input-container {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    
+    .domain-input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .domain-input:focus {
+      outline: none;
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+    }
+    
+    .btn.small {
+      padding: 8px 12px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    
+    .excluded-list {
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    
+    .excluded-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 10px;
+      margin-bottom: 4px;
+      background-color: white;
+      border-radius: 4px;
+      border: 1px solid #e8eaed;
+      font-size: 12px;
+    }
+    
+    .excluded-domain {
+      flex: 1;
+      color: #333;
+      font-family: monospace;
+      word-break: break-all;
+    }
+    
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #ea4335;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    
+    .remove-btn:hover {
+      background-color: #fce8e6;
+    }
+    
+    .quick-exclude {
+      margin-top: 8px;
+    }
+    
+    .empty-state {
+      text-align: center;
+      color: #5f6368;
+      font-size: 12px;
+      padding: 10px;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -159,6 +250,20 @@
   </div>
   
   <div class="group-list" id="groupList"></div>
+  
+  <div class="excluded-domains-section">
+    <div class="section-title">除外ドメイン設定</div>
+    <div class="domain-input-container">
+      <input type="text" id="domainInput" class="domain-input" placeholder="example.com または *.example.com">
+      <button id="addDomainBtn" class="btn small">追加</button>
+    </div>
+    <div class="quick-exclude">
+      <button id="excludeCurrentBtn" class="btn small secondary">現在のタブのドメインを除外</button>
+    </div>
+    <div class="excluded-list" id="excludedList">
+      <div class="empty-state">除外ドメインはありません</div>
+    </div>
+  </div>
   
   <div class="status" id="status">準備完了</div>
   
