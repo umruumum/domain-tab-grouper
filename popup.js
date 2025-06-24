@@ -268,6 +268,30 @@ async function excludeCurrentTabDomain() {
   }
 }
 
+
+// ドメインからホスト名を抽出する関数
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    
+    // newtabページやChromeの内部ページは除外
+    if (urlObj.protocol === 'chrome:' || 
+        urlObj.protocol === 'chrome-extension:' ||
+        url.includes('chrome://newtab/') ||
+        url.includes('chrome://new-tab-page/') ||
+        url === 'chrome://newtab/' ||
+        url === 'about:blank' ||
+        url === '') {
+      return null;
+    }
+    
+    return urlObj.hostname;
+  } catch (error) {
+    console.error('Invalid URL:', url);
+    return null;
+  }
+}
+
 // ドメインの形式をチェックする関数
 function isValidDomain(domain) {
   // ワイルドカード形式 (*.example.com) の場合
