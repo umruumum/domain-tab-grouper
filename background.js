@@ -99,18 +99,22 @@ async function handleTabDomainChange(tabId, newUrl, oldDomain) {
   }
 }
 
-// 単一のタブを適切なグループに配置する関数
+// 単一のタブを適切なグループに配置する関数（ウィンドウ内で）
 async function regroupSingleTab(tabId, domain) {
   try {
-    // 同じドメインの他のタブを探す
-    const tabs = await chrome.tabs.query({});
+    // まず該当タブの情報を取得してウィンドウIDを確認
+    const targetTab = await chrome.tabs.get(tabId);
+    const windowId = targetTab.windowId;
+    
+    // 同じウィンドウ内で同じドメインの他のタブを探す
+    const tabs = await chrome.tabs.query({ windowId: windowId });
     const sameDomainTabs = tabs.filter(tab => {
       const tabDomain = extractDomain(tab.url);
       return tabDomain === domain && tab.id !== tabId;
     });
     
-    // 既存のグループがあるかチェック
-    const groups = await chrome.tabGroups.query({});
+    // 同じウィンドウ内の既存のグループがあるかチェック
+    const groups = await chrome.tabGroups.query({ windowId: windowId });
     let targetGroup = null;
     
     for (const group of groups) {
@@ -143,13 +147,13 @@ async function regroupSingleTab(tabId, domain) {
   }
 }
 
-// ドメインに基づいてタブをグループ化する関数（改良版）
-async function groupTabsByDomain() {
+// 特定のウィンドウでドメインに基づいてタブをグループ化する関数
+async function groupTabsByDomainInWindow(windowId) {
   try {
-    // 現在の全タブを取得
-    const tabs = await chrome.tabs.query({});
+    // 指定されたウィンドウのタブを取得
+    const tabs = await chrome.tabs.query({ windowId: windowId });
     
-    // ドメインごとにタブをグループ化
+    // ドメインごとにタブをグループ化（ウィンドウ内で）
     const domainGroups = {};
     
     for (const tab of tabs) {
@@ -165,8 +169,8 @@ async function groupTabsByDomain() {
       }
     }
     
-    // 既存のグループを取得
-    const existingGroups = await chrome.tabGroups.query({});
+    // 指定されたウィンドウの既存のグループを取得
+    const existingGroups = await chrome.tabGroups.query({ windowId: windowId });
     const existingGroupsByTitle = {};
     existingGroups.forEach(group => {
       if (group.title) {
@@ -230,7 +234,24 @@ async function groupTabsByDomain() {
     // 空のグループを削除
     await removeEmptyGroups();
   } catch (error) {
-    console.error('Error grouping tabs:', error);
+    console.error('Error grouping tabs in window:', error);
+  }
+}
+
+// 全ウィンドウでドメインに基づいてタブをグループ化する関数
+async function groupTabsByDomain() {
+  try {
+    // 全ウィンドウを取得
+    const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+    
+    // 各ウィンドウで個別にグループ化処理を実行
+    for (const window of windows) {
+      await groupTabsByDomainInWindow(window.id);
+    }
+    
+    console.log(`Grouped tabs in ${windows.length} windows`);
+  } catch (error) {
+    console.error('Error grouping tabs in all windows:', error);
   }
 }
 
@@ -238,8 +259,8 @@ async function groupTabsByDomain() {
 chrome.tabs.onCreated.addListener(async (tab) => {
   if (!autoGroupEnabled) return;
   
-  // 少し待ってからグループ化（URLが確定するまで）
-  setTimeout(() => groupTabsByDomain(), 500);
+  // 少し待ってから該当ウィンドウのみグループ化（URLが確定するまで）
+  setTimeout(() => groupTabsByDomainInWindow(tab.windowId), 500);
 });
 
 // タブが更新された時のイベントリスナー（ページ遷移を検知）
@@ -251,8 +272,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const oldDomain = tabDomainHistory.get(tabId);
     await handleTabDomainChange(tabId, tab.url, oldDomain);
   } else if (changeInfo.status === 'complete' && tab.url) {
-    // ページ読み込み完了時に全体を再グループ化
-    await groupTabsByDomain();
+    // ページ読み込み完了時に該当ウィンドウのみ再グループ化
+    await groupTabsByDomainInWindow(tab.windowId);
   }
 });
 
@@ -260,6 +281,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.action === 'groupTabs') {
     await groupTabsByDomain();
+    sendResponse({ success: true });
+  } else if (message.action === 'groupTabsInWindow') {
+    await groupTabsByDomainInWindow(message.windowId);
     sendResponse({ success: true });
   } else if (message.action === 'toggleAutoGroup') {
     autoGroupEnabled = message.enabled;

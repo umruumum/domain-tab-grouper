@@ -38,10 +38,12 @@ function showStatus(message) {
   statusElement.textContent = message;
 }
 
-// グループリストを更新
+// グループリストを更新（現在のウィンドウのみ）
 async function updateGroupList() {
   try {
-    const groups = await chrome.tabGroups.query({});
+    // 現在のウィンドウを取得
+    const currentWindow = await chrome.windows.getCurrent();
+    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
     const groupList = document.getElementById('groupList');
     groupList.innerHTML = '';
     
@@ -84,13 +86,19 @@ function getColorCode(color) {
   return colorMap[color] || '#4285f4';
 }
 
-// タブをグループ化する関数
+// タブをグループ化する関数（現在のウィンドウのみ）
 async function groupTabs() {
   try {
     showStatus('タブをグループ化中...');
     
+    // 現在のウィンドウIDを取得
+    const currentWindow = await chrome.windows.getCurrent();
+    
     // バックグラウンドスクリプトにメッセージを送信
-    await chrome.runtime.sendMessage({ action: 'groupTabs' });
+    await chrome.runtime.sendMessage({ 
+      action: 'groupTabsInWindow', 
+      windowId: currentWindow.id 
+    });
     
     // 少し待ってからグループリストを更新
     setTimeout(() => {
@@ -103,12 +111,14 @@ async function groupTabs() {
   }
 }
 
-// すべてのグループを解除する関数
+// すべてのグループを解除する関数（現在のウィンドウのみ）
 async function ungroupAll() {
   try {
     showStatus('グループを解除中...');
     
-    const groups = await chrome.tabGroups.query({});
+    // 現在のウィンドウのグループのみを取得
+    const currentWindow = await chrome.windows.getCurrent();
+    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
     
     for (const group of groups) {
       const tabs = await chrome.tabs.query({ groupId: group.id });
