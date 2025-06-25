@@ -9,6 +9,9 @@
     "activeTab",
     "storage"
   ],
+  "host_permissions": [
+    "https://api.github.com/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"

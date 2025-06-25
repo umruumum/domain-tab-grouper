@@ -84,6 +84,82 @@
       border-radius: 4px;
       margin-top: 10px;
     }
+
+    /* 更新通知のスタイル */
+    .update-notification {
+      background: linear-gradient(135deg, #4285f4, #34a853);
+      color: white;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-top: 8px;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    .update-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .update-icon {
+      font-size: 16px;
+    }
+
+    .update-text {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .update-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .update-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      padding: 4px 8px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+
+    .update-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .dismiss-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 2px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .dismiss-btn:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
     
     .toggle-container {
       margin-bottom: 15px;
@@ -485,6 +561,17 @@
 <body>
   <div class="header">
     <h1>Domain Tab Grouper</h1>
+    <!-- 更新通知エリア -->
+    <div class="update-notification" id="updateNotification" style="display: none;">
+      <div class="update-content">
+        <span class="update-icon">🆙</span>
+        <span class="update-text">新しいバージョンが利用可能です！</span>
+        <div class="update-actions">
+          <a href="#" id="updateLink" class="update-btn" target="_blank">ダウンロード</a>
+          <button id="dismissUpdate" class="dismiss-btn">×</button>
+        </div>
+      </div>
+    </div>
   </div>
   
   <div class="controls">
