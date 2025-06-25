@@ -1,7 +1,30 @@
 // ドメインベースでタブをグループ化するサービスワーカー
 
 import { GROUP_COLORS, CONFIG } from './constants.js';
-import { LRUCache, Logger, extractDomain } from './utils.js';
+import { LRUCache, Logger } from './utils.js';
+
+// ドメインからホスト名を抽出する関数（utils.jsから移動）
+function extractDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    
+    // Chrome内部ページは除外
+    if (urlObj.protocol === 'chrome:' || 
+        urlObj.protocol === 'chrome-extension:' ||
+        url.includes('chrome://newtab/') ||
+        url.includes('chrome://new-tab-page/') ||
+        url === 'chrome://newtab/' ||
+        url === 'about:blank' ||
+        url === '') {
+      return null;
+    }
+    
+    return urlObj.hostname;
+  } catch (error) {
+    Logger.error('Invalid URL:', url);
+    return null;
+  }
+}
 
 // タブのドメイン履歴を保存するマップ
 const tabDomainHistory = new Map();
@@ -272,7 +295,7 @@ async function ungroupDomainTabs(domain) {
 // タブのドメイン変更を処理する関数
 async function handleTabDomainChange(tabId, newUrl, oldDomain) {
   try {
-    const newDomain = extractDomain(newUrl);
+    const newDomain = extractDomainWithExclusion(newUrl);
     
     if (!newDomain) {
       return;
@@ -310,7 +333,7 @@ async function regroupSingleTab(tabId, domain) {
     // 同じウィンドウ内で同じドメインの他のタブを探す
     const tabs = await chrome.tabs.query({ windowId: windowId });
     const sameDomainTabs = tabs.filter(tab => {
-      const tabDomain = extractDomain(tab.url);
+      const tabDomain = extractDomainWithExclusion(tab.url);
       return tabDomain === domain && tab.id !== tabId;
     });
     
@@ -389,7 +412,7 @@ async function groupTabsByDomainInWindow(windowId) {
     const domainGroups = {};
     
     for (const tab of tabs) {
-      const domain = extractDomain(tab.url);
+      const domain = extractDomainWithExclusion(tab.url);
       if (domain) {
         if (!domainGroups[domain]) {
           domainGroups[domain] = [];
@@ -417,7 +440,7 @@ async function groupTabsByDomainInWindow(windowId) {
         const tabsToUngroup = [];
         
         for (const tab of tabsInGroup) {
-          const currentDomain = extractDomain(tab.url);
+          const currentDomain = extractDomainWithExclusion(tab.url);
           if (currentDomain && currentDomain !== group.title) {
             tabsToUngroup.push(tab.id);
           }

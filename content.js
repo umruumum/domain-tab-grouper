@@ -1,7 +1,11 @@
 // Content script for favicon color extraction
 // Service WorkerではImage/Canvasが使用できないため、content scriptで色抽出を行う
 
-import { CONFIG } from './constants.js';
+// 設定定数（constants.jsから複製）
+const CONFIG = {
+  FAVICON_CANVAS_SIZE: 32,
+  COLOR_QUANTIZATION_LEVEL: 32
+};
 
 // faviconから主要色を抽出する関数
 function extractDominantColorFromFavicon(faviconUrl) {
