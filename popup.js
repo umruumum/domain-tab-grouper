@@ -1,7 +1,16 @@
 // ポップアップUIの制御スクリプト
 
-// インポート（Chrome拡張のESモジュールサポートはManifest V3で利用可能）
-import { COLOR_CODES } from './constants.js';
+// Chrome拡張機能のカラーコード定義（constants.jsから移植）
+const COLOR_CODES = {
+  grey: '#9aa0a6',
+  blue: '#4285f4',
+  red: '#ea4335',
+  yellow: '#fbbc04',
+  green: '#34a853',
+  pink: '#ff8bcb',
+  purple: '#9c27b0',
+  cyan: '#00bcd4'
+};
 
 // ドメインからホスト名を抽出する関数
 function extractDomain(url) {
