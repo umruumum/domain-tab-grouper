@@ -683,6 +683,71 @@ function cancelGroupColor() {
   currentContextDomain = null;
 }
 
+// グループ名編集（コンテキストメニューから）
+async function editGroupNameFromMenu() {
+  if (!currentContextDomain) {
+    showStatus('グループが選択されていません');
+    return;
+  }
+  
+  // 現在のグループを特定
+  try {
+    const currentWindow = await chrome.windows.getCurrent();
+    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
+    const targetGroup = groups.find(group => group.title === currentContextDomain);
+    
+    if (!targetGroup) {
+      showStatus('グループが見つかりません');
+      return;
+    }
+    
+    hideContextMenu();
+    
+    // プロンプトで新しいグループ名を入力
+    const currentName = targetGroup.title;
+    const newName = prompt(`グループ名を編集してください:\n(現在: ${currentName})`, currentName);
+    
+    if (newName === null) {
+      // キャンセルされた場合
+      return;
+    }
+    
+    if (newName.trim() === '') {
+      showStatus('グループ名を空にすることはできません');
+      return;
+    }
+    
+    if (newName === currentName) {
+      // 変更されていない場合
+      return;
+    }
+    
+    showStatus('グループ名を変更中...');
+    
+    // グループ名を更新
+    await chrome.tabGroups.update(targetGroup.id, { title: newName });
+    
+    // ドメイン名設定を更新（該当する場合）
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'setDomainName', 
+      domain: currentContextDomain,
+      name: newName
+    });
+    
+    if (response && response.success) {
+      showStatus(`グループ名を「${newName}」に変更しました`);
+      await updateGroupList();
+      await updateDomainNamesList();
+    } else {
+      showStatus('グループ名の設定保存に失敗しました');
+    }
+    
+  } catch (error) {
+    console.error('Error editing group name:', error);
+    showStatus('グループ名の変更に失敗しました');
+  }
+}
+
 
 
 // ドメインからホスト名を抽出する関数
@@ -965,6 +1030,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // コンテキストメニューのイベントリスナー
+  document.getElementById('editNameMenu').addEventListener('click', editGroupNameFromMenu);
   document.getElementById('excludeDomainMenu').addEventListener('click', excludeDomainFromMenu);
   document.getElementById('changeColorMenu').addEventListener('click', changeColorFromMenu);
 
