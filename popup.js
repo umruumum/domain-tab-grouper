@@ -622,7 +622,7 @@ function showGroupColorSelectionMenu() {
   
   // メニューの位置を計算（画面中央に表示）
   const popupRect = document.body.getBoundingClientRect();
-  colorMenu.style.left = Math.max(10, (popupRect.width - 280) / 2) + 'px';
+  colorMenu.style.left = Math.max(10, (popupRect.width - 260) / 2) + 'px';
   colorMenu.style.top = '150px';
   colorMenu.style.display = 'block';
   
