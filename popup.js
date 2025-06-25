@@ -720,6 +720,151 @@ function isValidDomain(domain) {
   return domainRegex.test(domain);
 }
 
+// ドメイングループ名リストを更新する関数
+async function updateDomainNamesList() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getDomainNames' });
+    if (response && response.success) {
+      const nameList = document.getElementById('nameList');
+      const domainNames = response.domainNames;
+      
+      // スクロール位置を保存
+      const scrollTop = nameList.scrollTop;
+      
+      if (Object.keys(domainNames).length === 0) {
+        nameList.innerHTML = '<div class="empty-state">ドメイングループ名設定はありません</div>';
+      } else {
+        nameList.innerHTML = Object.entries(domainNames).map(([domain, name]) => `
+          <div class="name-item">
+            <span class="name-domain">${domain}</span>
+            <span class="name-badge">${name}</span>
+            <button class="remove-btn" data-domain="${domain}">削除</button>
+          </div>
+        `).join('');
+        
+        // 削除ボタンのイベントリスナーを追加
+        nameList.querySelectorAll('.remove-btn').forEach(btn => {
+          btn.addEventListener('click', () => removeDomainName(btn.dataset.domain));
+        });
+      }
+      
+      // スクロール位置を復元
+      nameList.scrollTop = scrollTop;
+    }
+  } catch (error) {
+    console.error('Error updating domain names list:', error);
+  }
+}
+
+// ドメイングループ名を設定する関数
+async function addDomainName(domain, name) {
+  try {
+    if (!domain || domain.trim() === '') {
+      showStatus('ドメインを入力してください');
+      return;
+    }
+    
+    if (!name || name.trim() === '') {
+      showStatus('グループ名を入力してください');
+      return;
+    }
+    
+    domain = domain.trim().toLowerCase();
+    name = name.trim();
+    
+    // 簡単なバリデーション
+    if (!isValidDomain(domain)) {
+      showStatus('無効なドメイン形式です');
+      return;
+    }
+    
+    showStatus('ドメイングループ名を設定中...');
+    
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'setDomainName', 
+      domain: domain,
+      name: name
+    });
+    
+    if (response && response.success) {
+      showStatus(`${domain} のグループ名を ${name} に設定しました`);
+      await updateDomainNamesList();
+      
+      // 入力フィールドをクリア
+      const domainInput = document.getElementById('nameDomainInput');
+      const nameInput = document.getElementById('groupNameInput');
+      if (domainInput) domainInput.value = '';
+      if (nameInput) nameInput.value = '';
+      
+      // グループリストも更新（名前が変わったため）
+      setTimeout(() => {
+        updateGroupList();
+      }, 500);
+    } else {
+      showStatus((response && response.error) || 'ドメイングループ名の設定に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error setting domain name:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// ドメイングループ名を削除する関数
+async function removeDomainName(domain) {
+  try {
+    showStatus('ドメイングループ名設定を削除中...');
+    
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'removeDomainName', 
+      domain: domain 
+    });
+    
+    if (response && response.success) {
+      showStatus(`${domain} のグループ名設定を削除しました`);
+      await updateDomainNamesList();
+      
+      // グループリストも更新（名前が変わったため）
+      setTimeout(() => {
+        updateGroupList();
+      }, 500);
+    } else {
+      showStatus((response && response.error) || 'ドメイングループ名設定の削除に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error removing domain name:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// 現在のタブのドメイングループ名を設定する関数
+async function setCurrentTabName() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url) {
+      showStatus('現在のタブのドメインを取得できません');
+      return;
+    }
+    
+    const domain = extractDomain(tab.url);
+    if (!domain) {
+      showStatus('このタブはグループ化対象外です');
+      return;
+    }
+    
+    const nameInput = document.getElementById('groupNameInput');
+    if (!nameInput.value) {
+      showStatus('グループ名を入力してください');
+      return;
+    }
+    
+    document.getElementById('nameDomainInput').value = domain;
+    await addDomainName(domain, nameInput.value);
+  } catch (error) {
+    console.error('Error setting current tab name:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
 // イベントリスナーを設定
 document.addEventListener('DOMContentLoaded', async () => {
   // 設定を読み込んでトグルスイッチを初期化
@@ -727,10 +872,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toggle = document.getElementById('autoGroupToggle');
   toggle.checked = settings.autoGroupEnabled;
   
-  // 初期化時にグループリストと除外ドメインリスト、ドメイン色リストを更新
+  // 初期化時にグループリストと除外ドメインリスト、ドメイン色リスト、ドメイン名リストを更新
   updateGroupList();
   updateExcludedDomainsList();
   updateDomainColorsList();
+  updateDomainNamesList();
   
   // ボタンのイベントリスナー
   document.getElementById('groupTabs').addEventListener('click', groupTabs);
@@ -770,6 +916,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       const domain = document.getElementById('colorDomainInput').value;
       const color = document.getElementById('colorSelect').value;
       addDomainColor(domain, color);
+    }
+  });
+
+  // ドメイングループ名関連のイベントリスナー
+  document.getElementById('addNameBtn').addEventListener('click', () => {
+    const domain = document.getElementById('nameDomainInput').value;
+    const name = document.getElementById('groupNameInput').value;
+    addDomainName(domain, name);
+  });
+  
+  document.getElementById('setCurrentNameBtn').addEventListener('click', setCurrentTabName);
+  
+  // Enterキーでドメイングループ名設定
+  document.getElementById('nameDomainInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const domain = document.getElementById('nameDomainInput').value;
+      const name = document.getElementById('groupNameInput').value;
+      addDomainName(domain, name);
+    }
+  });
+  
+  document.getElementById('groupNameInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const domain = document.getElementById('nameDomainInput').value;
+      const name = document.getElementById('groupNameInput').value;
+      addDomainName(domain, name);
     }
   });
 
