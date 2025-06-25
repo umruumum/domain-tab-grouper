@@ -373,16 +373,15 @@
       background-color: #f1f3f4;
     }
 
-    /* 色選択メニューのスタイル */
-    .color-selection-menu {
+    /* グループ色選択メニューのスタイル */
+    .group-color-selection-menu {
       position: absolute;
       background: white;
       border: 1px solid #dadce0;
       border-radius: 12px;
       box-shadow: 0 6px 16px rgba(0,0,0,0.2);
       z-index: 1001;
-      min-width: 200px;
-      max-width: 250px;
+      min-width: 280px;
       display: none;
       padding: 16px;
     }
@@ -394,44 +393,6 @@
       margin-bottom: 12px;
       text-align: center;
     }
-
-    .color-options {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .color-option {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      font-size: 13px;
-    }
-
-    .color-option:hover {
-      background-color: #f8f9fa;
-    }
-
-    .color-circle {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      border: 2px solid #fff;
-      box-shadow: 0 0 0 1px #dadce0;
-    }
-
-    .color-circle.red { background-color: #ff4444; }
-    .color-circle.pink { background-color: #e91e63; }
-    .color-circle.purple { background-color: #9c27b0; }
-    .color-circle.blue { background-color: #2196f3; }
-    .color-circle.cyan { background-color: #00bcd4; }
-    .color-circle.green { background-color: #4caf50; }
-    .color-circle.yellow { background-color: #ffeb3b; }
-    .color-circle.grey { background-color: #9e9e9e; }
 
   </style>
 </head>
@@ -507,42 +468,23 @@
     </div>
   </div>
 
-  <!-- 色選択メニュー -->
-  <div class="color-selection-menu" id="colorSelectionMenu">
-    <div class="color-selection-header">色を選択してください</div>
-    <div class="color-options">
-      <div class="color-option" data-color="red">
-        <div class="color-circle red"></div>
-        <span>🔴 Red</span>
-      </div>
-      <div class="color-option" data-color="pink">
-        <div class="color-circle pink"></div>
-        <span>🩷 Pink</span>
-      </div>
-      <div class="color-option" data-color="purple">
-        <div class="color-circle purple"></div>
-        <span>🟣 Purple</span>
-      </div>
-      <div class="color-option" data-color="blue">
-        <div class="color-circle blue"></div>
-        <span>🔵 Blue</span>
-      </div>
-      <div class="color-option" data-color="cyan">
-        <div class="color-circle cyan"></div>
-        <span>🩵 Cyan</span>
-      </div>
-      <div class="color-option" data-color="green">
-        <div class="color-circle green"></div>
-        <span>🟢 Green</span>
-      </div>
-      <div class="color-option" data-color="yellow">
-        <div class="color-circle yellow"></div>
-        <span>🟡 Yellow</span>
-      </div>
-      <div class="color-option" data-color="grey">
-        <div class="color-circle grey"></div>
-        <span>⚪ Grey</span>
-      </div>
+  <!-- グループ色選択メニュー -->
+  <div class="group-color-selection-menu" id="groupColorSelectionMenu">
+    <div class="color-selection-header">グループの色を変更</div>
+    <div class="color-input-container">
+      <select id="groupColorSelect" class="color-select">
+        <option value="">色を選択</option>
+        <option value="red">🔴 Red</option>
+        <option value="pink">🩷 Pink</option>
+        <option value="purple">🟣 Purple</option>
+        <option value="blue">🔵 Blue</option>
+        <option value="cyan">🩵 Cyan</option>
+        <option value="green">🟢 Green</option>
+        <option value="yellow">🟡 Yellow</option>
+        <option value="grey">⚪ Grey</option>
+      </select>
+      <button id="applyGroupColorBtn" class="btn small">適用</button>
+      <button id="cancelGroupColorBtn" class="btn small secondary">キャンセル</button>
     </div>
   </div>
   

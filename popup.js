@@ -67,7 +67,6 @@ async function updateGroupList() {
       groupElement.dataset.domain = group.title;
       groupElement.dataset.groupId = group.id;
       
-      console.log(`Creating group element: title="${group.title}", id=${group.id}`);
       
       // グループタイトルが有効な場合のみクリックイベントを追加
       const groupTitle = group.title;
@@ -107,7 +106,7 @@ function getColorCode(color) {
     red: '#ea4335',
     yellow: '#fbbc04',
     green: '#34a853',
-    pink: '#ff6d01',
+    pink: '#ff8bcb',
     purple: '#9c27b0',
     cyan: '#00bcd4'
   };
@@ -366,9 +365,6 @@ function getColorLabel(color) {
 // ドメイン色を設定する関数
 async function addDomainColor(domain, color) {
   try {
-    console.log('=== ADD DOMAIN COLOR DEBUG ===');
-    console.log('Input domain:', domain);
-    console.log('Input color:', color);
     
     if (!domain || domain.trim() === '') {
       showStatus('ドメインを入力してください');
@@ -381,17 +377,14 @@ async function addDomainColor(domain, color) {
     }
     
     domain = domain.trim().toLowerCase();
-    console.log('Processed domain:', domain);
     
     // 簡単なバリデーション
     if (!isValidDomain(domain)) {
       showStatus('無効なドメイン形式です');
-      console.log('Domain validation failed');
       return;
     }
     
     showStatus('ドメイン色を設定中...');
-    console.log('Sending message to background script...');
     
     const response = await chrome.runtime.sendMessage({ 
       action: 'setDomainColor', 
@@ -399,7 +392,6 @@ async function addDomainColor(domain, color) {
       color: color
     });
     
-    console.log('Background response:', response);
     
     if (response && response.success) {
       showStatus(`${domain} の色を ${getColorLabel(color)} に設定しました`);
@@ -412,15 +404,12 @@ async function addDomainColor(domain, color) {
       if (colorSelect) colorSelect.value = '';
       
       // グループリストも更新（色が変わったため）
-      console.log('Updating group list after color change...');
       setTimeout(() => {
         updateGroupList();
       }, 500);
     } else {
       showStatus((response && response.error) || 'ドメイン色の設定に失敗しました');
-      console.log('Failed to set domain color:', response);
     }
-    console.log('==============================');
   } catch (error) {
     console.error('Error setting domain color:', error);
     showStatus('エラーが発生しました');
@@ -489,25 +478,13 @@ let currentContextDomain = null;
 // グループをクリックしたときの処理
 function handleGroupClick(event, domain) {
   event.preventDefault();
-  console.log('=== GROUP CLICK DEBUG ===');
-  console.log('Received domain parameter:', domain);
-  console.log('Domain type:', typeof domain);
-  console.log('Domain is null:', domain === null);
-  console.log('Domain is undefined:', domain === undefined);
-  console.log('Event target:', event.target);
-  console.log('Event currentTarget:', event.currentTarget);
-  console.log('Dataset domain:', event.currentTarget.dataset.domain);
-  console.log('Dataset groupId:', event.currentTarget.dataset.groupId);
   
   // ドメインがnullの場合、datasetから取得を試行
   let finalDomain = domain;
   if (!finalDomain || finalDomain === 'null' || finalDomain.trim() === '') {
     finalDomain = event.currentTarget.dataset.domain;
-    console.log('Using fallback domain from dataset:', finalDomain);
   }
   
-  console.log('Final domain to use:', finalDomain);
-  console.log('=========================');
   
   hideContextMenu();
   showContextMenu(event, finalDomain);
@@ -516,20 +493,13 @@ function handleGroupClick(event, domain) {
 // グループを右クリックしたときの処理
 function handleGroupRightClick(event, domain) {
   event.preventDefault();
-  console.log('=== GROUP RIGHT-CLICK DEBUG ===');
-  console.log('Received domain parameter:', domain);
-  console.log('Domain type:', typeof domain);
-  console.log('Dataset domain:', event.currentTarget.dataset.domain);
   
   // ドメインがnullの場合、datasetから取得を試行
   let finalDomain = domain;
   if (!finalDomain || finalDomain === 'null' || finalDomain.trim() === '') {
     finalDomain = event.currentTarget.dataset.domain;
-    console.log('Using fallback domain from dataset:', finalDomain);
   }
   
-  console.log('Final domain to use:', finalDomain);
-  console.log('===============================');
   
   hideContextMenu();
   showContextMenu(event, finalDomain);
@@ -542,15 +512,11 @@ function showContextMenu(event, domain) {
   // ドメインがnullの場合、dataset.domainをフォールバックとして使用
   if (!domain || domain === 'null' || domain.trim() === '') {
     const fallbackDomain = event.currentTarget.dataset.domain;
-    console.log('Using fallback domain from dataset:', fallbackDomain);
     domain = fallbackDomain;
   }
   
   currentContextDomain = domain;
   
-  console.log('Showing context menu for domain:', domain);
-  console.log('Domain type:', typeof domain);
-  console.log('Domain is null/undefined:', domain == null);
   
   if (!domain || domain === 'null' || domain.trim() === '') {
     console.error('Cannot show context menu: invalid domain');
@@ -595,21 +561,23 @@ async function excludeDomainFromMenu() {
     return;
   }
   
-  console.log('Excluding domain from menu:', currentContextDomain);
+  
+  // currentContextDomainを保持するため、先にドメインを保存
+  const domainToExclude = currentContextDomain;
+  
   hideContextMenu();
   
   try {
-    showStatus(`${currentContextDomain} を除外中...`);
+    showStatus(`${domainToExclude} を除外中...`);
     
     const response = await chrome.runtime.sendMessage({ 
       action: 'addExcludedDomain', 
-      domain: currentContextDomain 
+      domain: domainToExclude 
     });
     
-    console.log('Exclude domain response:', response);
     
     if (response && response.success) {
-      showStatus(`${currentContextDomain} を除外しました`);
+      showStatus(`${domainToExclude} を除外しました`);
       
       // 除外ドメインリストを更新
       await updateExcludedDomainsList();
@@ -629,67 +597,88 @@ async function excludeDomainFromMenu() {
 
 // 色変更（コンテキストメニューから）
 async function changeColorFromMenu() {
-  console.log('=== COLOR CHANGE FROM MENU DEBUG ===');
-  console.log('currentContextDomain:', currentContextDomain);
-  console.log('Domain type:', typeof currentContextDomain);
-  console.log('====================================');
   
   if (!currentContextDomain) {
     showStatus('ドメインが選択されていません');
     return;
   }
   
+  // currentContextDomainを保持するため、先にドメインを保存
+  const domainToProcess = currentContextDomain;
+  
   hideContextMenu();
-  showColorSelectionMenu();
+  
+  // ドメインを復元
+  currentContextDomain = domainToProcess;
+  
+  showGroupColorSelectionMenu();
 }
 
-// 色選択メニューを表示
-function showColorSelectionMenu() {
-  const colorMenu = document.getElementById('colorSelectionMenu');
+// グループ色選択メニューを表示
+function showGroupColorSelectionMenu() {
+  const colorMenu = document.getElementById('groupColorSelectionMenu');
   
   // メニューの位置を計算（画面中央に表示）
   const popupRect = document.body.getBoundingClientRect();
-  colorMenu.style.left = Math.max(10, (popupRect.width - 250) / 2) + 'px';
+  colorMenu.style.left = Math.max(10, (popupRect.width - 280) / 2) + 'px';
   colorMenu.style.top = '150px';
   colorMenu.style.display = 'block';
   
+  // 色選択セレクトボックスをリセット
+  const groupColorSelect = document.getElementById('groupColorSelect');
+  groupColorSelect.value = '';
+  
   // クリック外し処理を有効化
   setTimeout(() => {
-    document.addEventListener('click', handleColorMenuClickOutside);
+    document.addEventListener('click', handleGroupColorMenuClickOutside);
   }, 100);
 }
 
-// 色選択メニューを非表示
-function hideColorSelectionMenu() {
-  const colorMenu = document.getElementById('colorSelectionMenu');
+// グループ色選択メニューを非表示
+function hideGroupColorSelectionMenu() {
+  const colorMenu = document.getElementById('groupColorSelectionMenu');
   colorMenu.style.display = 'none';
-  document.removeEventListener('click', handleColorMenuClickOutside);
+  document.removeEventListener('click', handleGroupColorMenuClickOutside);
 }
 
-// 色選択メニュー外をクリックしたときの処理
-function handleColorMenuClickOutside(event) {
-  const colorMenu = document.getElementById('colorSelectionMenu');
+// グループ色選択メニュー外をクリックしたときの処理
+function handleGroupColorMenuClickOutside(event) {
+  const colorMenu = document.getElementById('groupColorSelectionMenu');
   if (!colorMenu.contains(event.target)) {
-    hideColorSelectionMenu();
+    hideGroupColorSelectionMenu();
   }
 }
 
-// 色を選択したときの処理
-async function selectColor(color) {
-  console.log('=== SELECT COLOR DEBUG ===');
-  console.log('Selected color:', color);
-  console.log('currentContextDomain:', currentContextDomain);
-  console.log('=========================');
+// グループ色を適用する処理
+async function applyGroupColor() {
+  const groupColorSelect = document.getElementById('groupColorSelect');
+  const selectedColor = groupColorSelect.value;
+  
   
   if (!currentContextDomain) {
     showStatus('ドメインが選択されていません');
     return;
   }
   
-  hideColorSelectionMenu();
+  if (!selectedColor) {
+    showStatus('色を選択してください');
+    return;
+  }
+  
+  hideGroupColorSelectionMenu();
   
   // addDomainColor関数と同じロジックを使用
-  await addDomainColor(currentContextDomain, color);
+  await addDomainColor(currentContextDomain, selectedColor);
+  
+  // 適用後にcurrentContextDomainをリセット
+  currentContextDomain = null;
+}
+
+// グループ色選択をキャンセルする処理
+function cancelGroupColor() {
+  hideGroupColorSelectionMenu();
+  // キャンセル時にcurrentContextDomainをリセット
+  currentContextDomain = null;
 }
 
 
@@ -786,18 +775,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('excludeDomainMenu').addEventListener('click', excludeDomainFromMenu);
   document.getElementById('changeColorMenu').addEventListener('click', changeColorFromMenu);
 
-  // 色選択メニューのイベントリスナー
-  document.querySelectorAll('.color-option').forEach(option => {
-    option.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const color = option.dataset.color;
-      console.log('=== COLOR OPTION CLICKED ===');
-      console.log('Clicked color option:', color);
-      console.log('Option element:', option);
-      console.log('============================');
-      selectColor(color);
-    });
-  });
+  // グループ色選択メニューのイベントリスナー
+  document.getElementById('applyGroupColorBtn').addEventListener('click', applyGroupColor);
+  document.getElementById('cancelGroupColorBtn').addEventListener('click', cancelGroupColor);
   
   // グループ変更を監視してリアルタイム更新
   let currentGroupState = null;
