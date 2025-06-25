@@ -1,5 +1,8 @@
 // ポップアップUIの制御スクリプト
 
+// インポート（Chrome拡張のESモジュールサポートはManifest V3で利用可能）
+import { COLOR_CODES } from './constants.js';
+
 // ドメインからホスト名を抽出する関数
 function extractDomain(url) {
   try {
@@ -100,17 +103,7 @@ async function updateGroupList() {
 
 // グループ色をカラーコードに変換
 function getColorCode(color) {
-  const colorMap = {
-    grey: '#9aa0a6',
-    blue: '#4285f4',
-    red: '#ea4335',
-    yellow: '#fbbc04',
-    green: '#34a853',
-    pink: '#ff8bcb',
-    purple: '#9c27b0',
-    cyan: '#00bcd4'
-  };
-  return colorMap[color] || '#4285f4';
+  return COLOR_CODES[color] || COLOR_CODES.blue;
 }
 
 

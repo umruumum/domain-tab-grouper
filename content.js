@@ -1,6 +1,8 @@
 // Content script for favicon color extraction
 // Service WorkerではImage/Canvasが使用できないため、content scriptで色抽出を行う
 
+import { CONFIG } from './constants.js';
+
 // faviconから主要色を抽出する関数
 function extractDominantColorFromFavicon(faviconUrl) {
   return new Promise((resolve) => {
@@ -17,13 +19,14 @@ function extractDominantColorFromFavicon(faviconUrl) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        // faviconを32x32にリサイズして描画
-        canvas.width = 32;
-        canvas.height = 32;
-        ctx.drawImage(img, 0, 0, 32, 32);
+        // faviconを設定サイズにリサイズして描画
+        const size = CONFIG.FAVICON_CANVAS_SIZE;
+        canvas.width = size;
+        canvas.height = size;
+        ctx.drawImage(img, 0, 0, size, size);
         
         // 画像データを取得
-        const imageData = ctx.getImageData(0, 0, 32, 32);
+        const imageData = ctx.getImageData(0, 0, size, size);
         const data = imageData.data;
         
         // 色のヒストグラムを作成
@@ -37,10 +40,11 @@ function extractDominantColorFromFavicon(faviconUrl) {
           // 透明ピクセルと白に近い色はスキップ
           if (a < 128 || (r > 240 && g > 240 && b > 240)) continue;
           
-          // 色を簡略化（8段階に量子化）
-          const quantizedR = Math.floor(r / 32) * 32;
-          const quantizedG = Math.floor(g / 32) * 32;
-          const quantizedB = Math.floor(b / 32) * 32;
+          // 色を簡略化（設定された段階に量子化）
+          const level = CONFIG.COLOR_QUANTIZATION_LEVEL;
+          const quantizedR = Math.floor(r / level) * level;
+          const quantizedG = Math.floor(g / level) * level;
+          const quantizedB = Math.floor(b / level) * level;
           
           const colorKey = `${quantizedR},${quantizedG},${quantizedB}`;
           colorCounts[colorKey] = (colorCounts[colorKey] || 0) + 1;
