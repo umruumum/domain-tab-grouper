@@ -24,7 +24,9 @@ jobs:
         run: |
           # Only review JavaScript files, limit to critical changes
           JS_FILES=$(git diff --name-only HEAD~1 HEAD | grep '\.js$' | head -2)
-          CHANGE_COUNT=$(git diff --stat HEAD~1 HEAD | tail -1 | awk '{print $4}')
+          INSERTIONS=$(git diff --stat HEAD~1 HEAD | tail -1 | grep -o '[0-9]\+ insertions' | grep -o '[0-9]\+' || echo "0")
+          DELETIONS=$(git diff --stat HEAD~1 HEAD | tail -1 | grep -o '[0-9]\+ deletions' | grep -o '[0-9]\+' || echo "0")
+          TOTAL_CHANGES=$((INSERTIONS + DELETIONS))
           
           if [ -z "$JS_FILES" ]; then
             echo "No JS files changed, skipping review"
@@ -32,8 +34,8 @@ jobs:
             exit 0
           fi
           
-          if [ "${CHANGE_COUNT:-0}" -gt 200 ]; then
-            echo "Too many changes ($CHANGE_COUNT), skipping review"
+          if [ "$TOTAL_CHANGES" -gt 200 ]; then
+            echo "Too many changes ($TOTAL_CHANGES), skipping review"
             echo "skip=true" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -58,6 +60,3 @@ jobs:
             • メモリリーク
             
             問題があれば指摘、なければ「問題なし」と回答。
-            
-          max_files: 2
-          max_lines_per_file: 100
