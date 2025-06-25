@@ -1,7 +1,31 @@
 // ドメインベースでタブをグループ化するサービスワーカー
 
-import { GROUP_COLORS, CONFIG } from './constants.js';
-import { LRUCache, Logger, extractDomain } from './utils.js';
+console.log('Background script loading...');
+
+try {
+  console.log('Importing modules...');
+  var { GROUP_COLORS, CONFIG } = await import('./constants.js');
+  var { LRUCache, Logger, extractDomain } = await import('./utils.js');
+  console.log('Modules imported successfully');
+} catch (importError) {
+  console.error('Error importing modules:', importError);
+  // フォールバック: 基本的な機能のみ提供
+  var GROUP_COLORS = {
+    'red': { r: 255, g: 67, b: 54 },
+    'blue': { r: 33, g: 150, b: 243 },
+    'green': { r: 76, g: 175, b: 80 }
+  };
+  var CONFIG = { MAX_CACHE_SIZE: 100 };
+  var LRUCache = class { constructor() { this.cache = new Map(); } };
+  var Logger = { info: console.log, debug: console.log, warn: console.warn };
+  var extractDomain = function(url) {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return null;
+    }
+  };
+}
 
 // タブのドメイン履歴を保存するマップ
 const tabDomainHistory = new Map();
@@ -15,21 +39,27 @@ let excludedDomains = [];
 // ドメイン色設定
 let domainColors = {};
 
+// ドメイン名設定
+let domainNames = {};
+
 // 設定を読み込む関数
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains', 'domainColors']);
+    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains', 'domainColors', 'domainNames']);
     autoGroupEnabled = result.autoGroupEnabled !== false; // デフォルトはtrue
     excludedDomains = result.excludedDomains || []; // デフォルトは空配列
     domainColors = result.domainColors || {}; // デフォルトは空オブジェクト
+    domainNames = result.domainNames || {}; // デフォルトは空オブジェクト
     Logger.info(`Auto-grouping loaded: ${autoGroupEnabled}`);
     Logger.info(`Excluded domains loaded: ${excludedDomains.length} domains`);
     Logger.info(`Domain colors loaded: ${Object.keys(domainColors).length} domains`);
+    Logger.info(`Domain names loaded: ${Object.keys(domainNames).length} domains`);
   } catch (error) {
     console.error('Error loading settings:', error);
     autoGroupEnabled = true;
     excludedDomains = [];
     domainColors = {};
+    domainNames = {};
   }
 }
 
@@ -47,6 +77,16 @@ function isDomainExcluded(domain) {
 
 // ドメインごとの色キャッシュ（LRU実装）
 const domainColorCache = new LRUCache(CONFIG.MAX_CACHE_SIZE);
+
+// ドメインのグループタイトルを取得する関数
+function getGroupTitle(domain) {
+  // domainNamesが初期化されていない場合は初期化
+  if (!domainNames) {
+    domainNames = {};
+  }
+  // カスタム名が設定されている場合はそれを使用、なければドメイン名
+  return domainNames[domain] || domain;
+}
 
 // extractDomain関数を拡張して除外ドメインチェックを含める
 function extractDomainWithExclusion(url) {
@@ -168,6 +208,54 @@ async function verifyGroupExists(groupId) {
       return false;
     }
     throw error; // 他のエラーは再スロー
+  }
+}
+
+// 既存のグループのタイトルを更新する関数
+async function updateExistingGroupTitle(domain, newTitle, windowId = null) {
+  try {
+    console.log(`updateExistingGroupTitle called: domain=${domain}, newTitle=${newTitle}`);
+    Logger.debug(`Updating existing group title for domain: ${domain}, newTitle: ${newTitle}`);
+    
+    // windowIdが指定されている場合はそのウィンドウのみ、そうでなければ全てのウィンドウ
+    const queryOptions = windowId ? { windowId: windowId } : {};
+    const groups = await chrome.tabGroups.query(queryOptions);
+    Logger.debug(`Found ${groups.length} groups in ${windowId ? `window ${windowId}` : 'all windows'}`);
+    
+    let updated = false;
+    for (const group of groups) {
+      Logger.debug(`Checking group: ${group.title} (id: ${group.id})`);
+      
+      // グループが実際に存在するかチェック
+      const groupExists = await verifyGroupExists(group.id);
+      if (!groupExists) {
+        Logger.warn(`Group ${group.id} no longer exists, skipping`);
+        continue;
+      }
+      
+      // グループのタイトルがドメイン名またはカスタム名と一致するかチェック
+      if (group.title === domain || (domainNames && group.title === domainNames[domain])) {
+        Logger.debug(`Updating group ${group.id} title to: ${newTitle}`);
+        try {
+          await chrome.tabGroups.update(group.id, { title: newTitle });
+          Logger.info(`Successfully updated group title for ${domain}: ${newTitle}`);
+          updated = true;
+        } catch (error) {
+          console.error(`Error updating group ${group.id} title:`, error);
+          if (error.message.includes('No group with id')) {
+            Logger.warn(`Group ${group.id} no longer exists, skipping title update`);
+          } else {
+            throw error; // 他のエラーは再スロー
+          }
+        }
+      }
+    }
+    
+    if (!updated) {
+      Logger.debug(`No groups found for domain: ${domain}`);
+    }
+  } catch (error) {
+    console.error('Error updating existing group title:', error);
   }
 }
 
@@ -345,12 +433,13 @@ async function regroupSingleTab(tabId, domain) {
           const faviconUrl = faviconTab?.favIconUrl;
           const groupColor = await getGroupColor(domain, faviconUrl, faviconTab?.id);
           
-          Logger.debug(`Creating replacement group in regroupSingleTab for domain: ${domain}, color: ${groupColor}`);
+          const groupTitle = getGroupTitle(domain);
+          Logger.debug(`Creating replacement group in regroupSingleTab for domain: ${domain}, title: ${groupTitle}, color: ${groupColor}`);
           await chrome.tabGroups.update(groupId, {
-            title: domain,
+            title: groupTitle,
             color: groupColor
           });
-          console.log(`New replacement group created for ${domain} with ${allTabIds.length} tabs, title set to: ${domain}`);
+          console.log(`New replacement group created for ${domain} with ${allTabIds.length} tabs, title set to: ${groupTitle}`);
         } else {
           throw error; // 他のエラーは再スロー
         }
@@ -365,12 +454,13 @@ async function regroupSingleTab(tabId, domain) {
       const faviconUrl = faviconTab?.favIconUrl;
       const groupColor = await getGroupColor(domain, faviconUrl, faviconTab?.id);
       
-      Logger.debug(`Creating new group in regroupSingleTab for domain: ${domain}, color: ${groupColor}`);
+      const groupTitle = getGroupTitle(domain);
+      Logger.debug(`Creating new group in regroupSingleTab for domain: ${domain}, title: ${groupTitle}, color: ${groupColor}`);
       await chrome.tabGroups.update(groupId, {
-        title: domain,
+        title: groupTitle,
         color: groupColor
       });
-      Logger.info(`New group created for ${domain} with ${allTabIds.length} tabs, title set to: ${domain}`);
+      Logger.info(`New group created for ${domain} with ${allTabIds.length} tabs, title set to: ${groupTitle}`);
     } else {
       Logger.debug(`Single tab for ${domain}, not creating group`);
     }
@@ -433,7 +523,7 @@ async function groupTabsByDomainInWindow(windowId) {
     // ドメインごとにグループを作成または更新（2つ以上のタブから）
     for (const [domain, domainTabs] of Object.entries(domainGroups)) {
       if (domainTabs.length >= 2) { // 2つ以上のタブからグループ化
-        const groupTitle = domain;
+        const groupTitle = getGroupTitle(domain);
         
         // 既存のグループがあるかチェック
         let existingGroup = existingGroupsByTitle[groupTitle];
@@ -630,6 +720,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       } else if (message.action === 'getDomainColors') {
         sendResponse({ success: true, domainColors: domainColors });
+      } else if (message.action === 'setDomainName') {
+        console.log('setDomainName action received');
+        const domain = message.domain;
+        const name = message.name;
+        console.log('setDomainName params:', { domain, name });
+        Logger.debug(`Setting domain name: "${domain}" -> "${name}"`);
+        
+        // domainNamesが初期化されていない場合は初期化
+        if (!domainNames) {
+          console.log('domainNames not initialized, creating empty object');
+          domainNames = {};
+        }
+        Logger.debug(`Current domain names:`, domainNames);
+        
+        if (domain && name && domain.trim() !== '' && name.trim() !== '') {
+          console.log('Setting domain name in storage...');
+          domainNames[domain] = name;
+          
+          try {
+            await chrome.storage.local.set({ domainNames: domainNames });
+            console.log('Domain name saved to storage');
+            Logger.info(`Domain name set: ${domain} -> ${name}`);
+            
+            // 既存のグループのタイトルを更新
+            console.log('Updating existing group titles...');
+            await updateExistingGroupTitle(domain, name);
+            console.log('Group titles updated');
+            
+            sendResponse({ success: true, domainNames: domainNames });
+          } catch (storageError) {
+            console.error('Error saving to storage:', storageError);
+            sendResponse({ success: false, error: 'Storage error: ' + storageError.message });
+          }
+        } else {
+          console.log('Invalid domain or name parameters');
+          Logger.warn(`Failed to set domain name: domain="${domain}", name="${name}"`);
+          sendResponse({ success: false, error: 'Invalid domain or name' });
+        }
+      } else if (message.action === 'removeDomainName') {
+        const domain = message.domain;
+        
+        // domainNamesが初期化されていない場合は初期化
+        if (!domainNames) {
+          domainNames = {};
+        }
+        
+        if (domain && domainNames[domain]) {
+          delete domainNames[domain];
+          await chrome.storage.local.set({ domainNames: domainNames });
+          Logger.info(`Domain name removed: ${domain}`);
+          
+          // 既存のグループのタイトルをドメイン名にリセット
+          await updateExistingGroupTitle(domain, domain);
+          
+          sendResponse({ success: true, domainNames: domainNames });
+        } else {
+          sendResponse({ success: false, error: 'Domain not found in name settings' });
+        }
+      } else if (message.action === 'getDomainNames') {
+        // domainNamesが初期化されていない場合は初期化
+        if (!domainNames) {
+          domainNames = {};
+        }
+        sendResponse({ success: true, domainNames: domainNames });
       }
     } catch (error) {
       console.error('Error in message handler:', error);
