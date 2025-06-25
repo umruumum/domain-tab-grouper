@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # GitHub Actions の依存関係を監視
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "umruumum"
+    assignees:
+      - "umruumum"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # npm パッケージの監視（将来的にpackage.jsonが追加された場合）
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "umruumum"
+    assignees:
+      - "umruumum"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # セキュリティアップデートのみ（現在は依存関係なし）
+    allow:
+      - dependency-type: "direct"
+        update-type: "security"
