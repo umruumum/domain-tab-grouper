@@ -1,7 +1,31 @@
 // ドメインベースでタブをグループ化するサービスワーカー
 
-import { GROUP_COLORS, CONFIG } from './constants.js';
-import { LRUCache, Logger, extractDomain } from './utils.js';
+console.log('Background script loading...');
+
+try {
+  console.log('Importing modules...');
+  var { GROUP_COLORS, CONFIG } = await import('./constants.js');
+  var { LRUCache, Logger, extractDomain } = await import('./utils.js');
+  console.log('Modules imported successfully');
+} catch (importError) {
+  console.error('Error importing modules:', importError);
+  // フォールバック: 基本的な機能のみ提供
+  var GROUP_COLORS = {
+    'red': { r: 255, g: 67, b: 54 },
+    'blue': { r: 33, g: 150, b: 243 },
+    'green': { r: 76, g: 175, b: 80 }
+  };
+  var CONFIG = { MAX_CACHE_SIZE: 100 };
+  var LRUCache = class { constructor() { this.cache = new Map(); } };
+  var Logger = { info: console.log, debug: console.log, warn: console.warn };
+  var extractDomain = function(url) {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return null;
+    }
+  };
+}
 
 // タブのドメイン履歴を保存するマップ
 const tabDomainHistory = new Map();
