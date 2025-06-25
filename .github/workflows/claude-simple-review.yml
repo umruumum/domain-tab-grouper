@@ -12,13 +12,22 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check API Key
+        run: |
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "ANTHROPIC_API_KEY is not set"
+            exit 1
+          fi
+          echo "API key is configured"
+
       - name: Run Claude Review
-        uses: anthropics/claude-code-action@v0.0.24
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: "claude-3-haiku-20240307"
