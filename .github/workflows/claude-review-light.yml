@@ -1,12 +1,8 @@
-name: Claude Light Review
+name: Claude Light Review (Disabled)
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    paths:
-      - "**.js"
-      - "**.html"
-      - "**.json"
+  # Disabled - use claude-simple-review.yml instead
+  workflow_dispatch:
 
 jobs:
   claude-light-review:
@@ -22,29 +18,22 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Check PR size and get changed files
-        id: changed-files
+      - name: Check if review should run
+        id: check-review
         run: |
-          # Check total changes to avoid large PRs
-          INSERTIONS=$(git diff --stat HEAD~1 HEAD | tail -1 | grep -o '[0-9]\+ insertions' | grep -o '[0-9]\+' || echo "0")
-          DELETIONS=$(git diff --stat HEAD~1 HEAD | tail -1 | grep -o '[0-9]\+ deletions' | grep -o '[0-9]\+' || echo "0")
-          TOTAL_CHANGES=$((INSERTIONS + DELETIONS))
+          # Simple check for changed files
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(js|html|json)$' | wc -l)
           
-          if [ "$TOTAL_CHANGES" -gt 500 ]; then
-            echo "PR is too large ($TOTAL_CHANGES changes), skipping Claude review"
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
+          if [ "$CHANGED_FILES" -eq 0 ]; then
+            echo "No relevant files changed, skipping review"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found $CHANGED_FILES files to review"
+            echo "should_run=true" >> $GITHUB_OUTPUT
           fi
-          
-          # Get only the changed files to reduce token usage
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(js|html|json)$' | head -3)
-          echo "files<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "skip=false" >> $GITHUB_OUTPUT
 
       - name: Run Lightweight Claude Review
-        if: steps.changed-files.outputs.skip == 'false' && steps.changed-files.outputs.files != ''
+        if: steps.check-review.outputs.should_run == 'true'
         uses: anthropics/claude-code-action@v0.0.24
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -1,10 +1,8 @@
-name: Claude Mini Review
+name: Claude Mini Review (Disabled)
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    paths:
-      - "**.js"
+  # Disabled - use claude-simple-review.yml instead
+  workflow_dispatch:
 
 jobs:
   claude-mini-review:
