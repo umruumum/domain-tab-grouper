@@ -56,6 +56,10 @@ const domainColorCache = new LRUCache(CONFIG.MAX_CACHE_SIZE);
 
 // ドメインのグループタイトルを取得する関数
 function getGroupTitle(domain) {
+  // domainNamesが初期化されていない場合は初期化
+  if (!domainNames) {
+    domainNames = {};
+  }
   // カスタム名が設定されている場合はそれを使用、なければドメイン名
   return domainNames[domain] || domain;
 }
@@ -205,7 +209,7 @@ async function updateExistingGroupTitle(domain, newTitle, windowId = null) {
       }
       
       // グループのタイトルがドメイン名またはカスタム名と一致するかチェック
-      if (group.title === domain || group.title === domainNames[domain]) {
+      if (group.title === domain || (domainNames && group.title === domainNames[domain])) {
         Logger.debug(`Updating group ${group.id} title to: ${newTitle}`);
         try {
           await chrome.tabGroups.update(group.id, { title: newTitle });
@@ -695,9 +699,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const domain = message.domain;
         const name = message.name;
         Logger.debug(`Setting domain name: "${domain}" -> "${name}"`);
+        
+        // domainNamesが初期化されていない場合は初期化
+        if (!domainNames) {
+          domainNames = {};
+        }
         Logger.debug(`Current domain names:`, domainNames);
         
-        if (domain && name) {
+        if (domain && name && domain.trim() !== '' && name.trim() !== '') {
           domainNames[domain] = name;
           await chrome.storage.local.set({ domainNames: domainNames });
           Logger.info(`Domain name set: ${domain} -> ${name}`);
@@ -712,6 +721,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       } else if (message.action === 'removeDomainName') {
         const domain = message.domain;
+        
+        // domainNamesが初期化されていない場合は初期化
+        if (!domainNames) {
+          domainNames = {};
+        }
+        
         if (domain && domainNames[domain]) {
           delete domainNames[domain];
           await chrome.storage.local.set({ domainNames: domainNames });
@@ -725,6 +740,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ success: false, error: 'Domain not found in name settings' });
         }
       } else if (message.action === 'getDomainNames') {
+        // domainNamesが初期化されていない場合は初期化
+        if (!domainNames) {
+          domainNames = {};
+        }
         sendResponse({ success: true, domainNames: domainNames });
       }
     } catch (error) {
