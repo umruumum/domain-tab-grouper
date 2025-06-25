@@ -163,10 +163,11 @@
     
     .domain-input {
       flex: 1;
-      padding: 8px 12px;
+      padding: 6px 8px;
       border: 1px solid #dadce0;
       border-radius: 4px;
-      font-size: 13px;
+      font-size: 12px;
+      min-width: 100px;
     }
     
     .domain-input:focus {
@@ -176,9 +177,10 @@
     }
     
     .btn.small {
-      padding: 8px 12px;
-      font-size: 12px;
+      padding: 6px 10px;
+      font-size: 11px;
       white-space: nowrap;
+      flex-shrink: 0;
     }
     
     .excluded-list {
@@ -241,19 +243,21 @@
 
     .color-input-container {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 12px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     .color-select {
-      padding: 8px 12px;
+      padding: 6px 8px;
       border: 1px solid #dadce0;
       border-radius: 4px;
-      font-size: 13px;
+      font-size: 12px;
       background-color: white;
       cursor: pointer;
-      min-width: 100px;
+      max-width: 90px;
+      flex-shrink: 1;
     }
 
     .color-select:focus {
