@@ -759,6 +759,8 @@ async function updateDomainNamesList() {
 // ドメイングループ名を設定する関数
 async function addDomainName(domain, name) {
   try {
+    console.log('addDomainName called with:', { domain, name });
+    
     if (!domain || domain.trim() === '') {
       showStatus('ドメインを入力してください');
       return;
@@ -772,6 +774,8 @@ async function addDomainName(domain, name) {
     domain = domain.trim().toLowerCase();
     name = name.trim();
     
+    console.log('Processed values:', { domain, name });
+    
     // 簡単なバリデーション
     if (!isValidDomain(domain)) {
       showStatus('無効なドメイン形式です');
@@ -779,33 +783,48 @@ async function addDomainName(domain, name) {
     }
     
     showStatus('ドメイングループ名を設定中...');
+    console.log('Sending message to background script...');
     
-    const response = await chrome.runtime.sendMessage({ 
-      action: 'setDomainName', 
-      domain: domain,
-      name: name
-    });
-    
-    if (response && response.success) {
-      showStatus(`${domain} のグループ名を ${name} に設定しました`);
-      await updateDomainNamesList();
+    try {
+      // 5秒のタイムアウトを設定
+      const response = await Promise.race([
+        chrome.runtime.sendMessage({ 
+          action: 'setDomainName', 
+          domain: domain,
+          name: name
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: 5秒後にタイムアウトしました')), 5000)
+        )
+      ]);
       
-      // 入力フィールドをクリア
-      const domainInput = document.getElementById('nameDomainInput');
-      const nameInput = document.getElementById('groupNameInput');
-      if (domainInput) domainInput.value = '';
-      if (nameInput) nameInput.value = '';
+      console.log('Response received:', response);
       
-      // グループリストも更新（名前が変わったため）
-      setTimeout(() => {
-        updateGroupList();
-      }, 500);
-    } else {
-      showStatus((response && response.error) || 'ドメイングループ名の設定に失敗しました');
+      if (response && response.success) {
+        showStatus(`${domain} のグループ名を ${name} に設定しました`);
+        await updateDomainNamesList();
+        
+        // 入力フィールドをクリア
+        const domainInput = document.getElementById('nameDomainInput');
+        const nameInput = document.getElementById('groupNameInput');
+        if (domainInput) domainInput.value = '';
+        if (nameInput) nameInput.value = '';
+        
+        // グループリストも更新（名前が変わったため）
+        setTimeout(() => {
+          updateGroupList();
+        }, 500);
+      } else {
+        console.error('Background script returned error:', response);
+        showStatus((response && response.error) || 'ドメイングループ名の設定に失敗しました');
+      }
+    } catch (messageError) {
+      console.error('Error sending message to background script:', messageError);
+      showStatus('バックグラウンドスクリプトとの通信に失敗しました');
     }
   } catch (error) {
-    console.error('Error setting domain name:', error);
-    showStatus('エラーが発生しました');
+    console.error('Error in addDomainName:', error);
+    showStatus('エラーが発生しました: ' + error.message);
   }
 }
 

@@ -190,6 +190,7 @@ async function verifyGroupExists(groupId) {
 // 既存のグループのタイトルを更新する関数
 async function updateExistingGroupTitle(domain, newTitle, windowId = null) {
   try {
+    console.log(`updateExistingGroupTitle called: domain=${domain}, newTitle=${newTitle}`);
     Logger.debug(`Updating existing group title for domain: ${domain}, newTitle: ${newTitle}`);
     
     // windowIdが指定されている場合はそのウィンドウのみ、そうでなければ全てのウィンドウ
@@ -696,26 +697,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       } else if (message.action === 'getDomainColors') {
         sendResponse({ success: true, domainColors: domainColors });
       } else if (message.action === 'setDomainName') {
+        console.log('setDomainName action received');
         const domain = message.domain;
         const name = message.name;
+        console.log('setDomainName params:', { domain, name });
         Logger.debug(`Setting domain name: "${domain}" -> "${name}"`);
         
         // domainNamesが初期化されていない場合は初期化
         if (!domainNames) {
+          console.log('domainNames not initialized, creating empty object');
           domainNames = {};
         }
         Logger.debug(`Current domain names:`, domainNames);
         
         if (domain && name && domain.trim() !== '' && name.trim() !== '') {
+          console.log('Setting domain name in storage...');
           domainNames[domain] = name;
-          await chrome.storage.local.set({ domainNames: domainNames });
-          Logger.info(`Domain name set: ${domain} -> ${name}`);
           
-          // 既存のグループのタイトルを更新
-          await updateExistingGroupTitle(domain, name);
-          
-          sendResponse({ success: true, domainNames: domainNames });
+          try {
+            await chrome.storage.local.set({ domainNames: domainNames });
+            console.log('Domain name saved to storage');
+            Logger.info(`Domain name set: ${domain} -> ${name}`);
+            
+            // 既存のグループのタイトルを更新
+            console.log('Updating existing group titles...');
+            await updateExistingGroupTitle(domain, name);
+            console.log('Group titles updated');
+            
+            sendResponse({ success: true, domainNames: domainNames });
+          } catch (storageError) {
+            console.error('Error saving to storage:', storageError);
+            sendResponse({ success: false, error: 'Storage error: ' + storageError.message });
+          }
         } else {
+          console.log('Invalid domain or name parameters');
           Logger.warn(`Failed to set domain name: domain="${domain}", name="${name}"`);
           sendResponse({ success: false, error: 'Invalid domain or name' });
         }
