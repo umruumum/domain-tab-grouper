@@ -1,0 +1,70 @@
+name: Claude Light Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "**.js"
+      - "**.html"
+      - "**.json"
+
+jobs:
+  claude-light-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check PR size and get changed files
+        id: changed-files
+        run: |
+          # Check total changes to avoid large PRs
+          TOTAL_CHANGES=$(git diff --stat HEAD~1 HEAD | tail -1 | grep -o '[0-9]\+ insertions\|[0-9]\+ deletions' | grep -o '[0-9]\+' | paste -sd+ | bc)
+          
+          if [ "$TOTAL_CHANGES" -gt 500 ]; then
+            echo "PR is too large ($TOTAL_CHANGES changes), skipping Claude review"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get only the changed files to reduce token usage
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep -E '\.(js|html|json)$' | head -3)
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Run Lightweight Claude Review
+        if: steps.changed-files.outputs.skip == 'false' && steps.changed-files.outputs.files != ''
+        uses: anthropics/claude-code-action@v0.0.24
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          
+          # Use Claude Haiku for faster, cheaper reviews
+          model: "claude-3-haiku-20240307"
+          
+          # Include only changed files
+          include_files: ${{ steps.changed-files.outputs.files }}
+          
+          # Lightweight review prompt
+          direct_prompt: |
+            このChrome拡張機能の変更を簡潔にレビューしてください：
+
+            チェック項目：
+            - 🔒 セキュリティ問題はないか
+            - 🐛 明らかなバグはないか  
+            - ⚡ パフォーマンス問題はないか
+            - 🎯 Chrome拡張機能の仕様違反はないか
+
+            簡潔な日本語で要点のみフィードバックしてください。
+
+          # Limit review scope
+          max_files: 5
+          max_lines_per_file: 200

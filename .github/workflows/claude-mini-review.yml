@@ -1,0 +1,63 @@
+name: Claude Mini Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "**.js"
+
+jobs:
+  claude-mini-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get JS changes only
+        id: js-changes
+        run: |
+          # Only review JavaScript files, limit to critical changes
+          JS_FILES=$(git diff --name-only HEAD~1 HEAD | grep '\.js$' | head -2)
+          CHANGE_COUNT=$(git diff --stat HEAD~1 HEAD | tail -1 | awk '{print $4}')
+          
+          if [ -z "$JS_FILES" ]; then
+            echo "No JS files changed, skipping review"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          if [ "${CHANGE_COUNT:-0}" -gt 200 ]; then
+            echo "Too many changes ($CHANGE_COUNT), skipping review"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "files=$JS_FILES" >> $GITHUB_OUTPUT
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Mini Claude Review
+        if: steps.js-changes.outputs.skip == 'false'
+        uses: anthropics/claude-code-action@v0.0.24
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-3-haiku-20240307"
+          
+          # Ultra-minimal prompt for basic safety check
+          direct_prompt: |
+            JavaScriptファイルの変更を安全性の観点のみでチェック：
+            
+            ❌ 確認項目：
+            • セキュリティホール
+            • 明らかなバグ
+            • メモリリーク
+            
+            問題があれば指摘、なければ「問題なし」と回答。
+            
+          max_files: 2
+          max_lines_per_file: 100
