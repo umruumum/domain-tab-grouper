@@ -53,11 +53,33 @@ function showStatus(message) {
 }
 
 // グループリストを更新（現在のウィンドウのみ）
+let updateInProgress = false;
 async function updateGroupList() {
+  if (updateInProgress) {
+    console.log('updateGroupList already in progress, skipping');
+    return;
+  }
+  
+  updateInProgress = true;
+  console.log('updateGroupList started');
   try {
     // 現在のウィンドウを取得
     const currentWindow = await chrome.windows.getCurrent();
-    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
+    const allGroups = await chrome.tabGroups.query({ windowId: currentWindow.id });
+    
+    // API結果から重複を除去（念のため）
+    const uniqueGroupsMap = new Map();
+    allGroups.forEach(group => {
+      uniqueGroupsMap.set(group.id, group);
+    });
+    const groups = Array.from(uniqueGroupsMap.values());
+    
+    console.log(`Found ${allGroups.length} groups from API, ${groups.length} unique groups`);
+    if (allGroups.length !== groups.length) {
+      console.warn('Duplicate groups detected in API response:', 
+        allGroups.map(g => `ID:${g.id} Title:${g.title}`));
+    }
+    
     const groupList = document.getElementById('groupList');
     
     // スクロール位置を保存
@@ -71,8 +93,25 @@ async function updateGroupList() {
       return;
     }
     
+    // 重複防止のためのSet（グループIDで判定）
+    const displayedGroupIds = new Set();
+    
     for (const group of groups) {
-      const tabs = await chrome.tabs.query({ groupId: group.id });
+      // 同じIDのグループが既に表示されている場合はスキップ
+      if (displayedGroupIds.has(group.id)) {
+        console.warn(`Duplicate group ID detected: ${group.id} (${group.title}), skipping`);
+        continue;
+      }
+      // グループの存在確認
+      let tabs;
+      try {
+        tabs = await chrome.tabs.query({ groupId: group.id });
+      } catch (error) {
+        if (error.message.includes('No group with id')) {
+          continue; // エラーが出たグループはスキップ
+        }
+        throw error;
+      }
       const groupElement = document.createElement('div');
       groupElement.className = 'group-item';
       groupElement.style.borderColor = getColorCode(group.color);
@@ -88,6 +127,10 @@ async function updateGroupList() {
         <div class="group-title">${displayTitle}</div>
         <div class="group-count">${tabs.length} タブ</div>
       `;
+      
+      // グループIDを表示済みとしてマーク
+      displayedGroupIds.add(group.id);
+      console.log(`Displaying group: ID=${group.id}, Title=${group.title}, Tabs=${tabs.length}`);
       
       // グループタイトルが有効な場合のみクリックイベントを追加
       if (groupTitle && groupTitle.trim() !== '') {
@@ -107,6 +150,9 @@ async function updateGroupList() {
   } catch (error) {
     console.error('Error updating group list:', error);
     showStatus('エラーが発生しました');
+  } finally {
+    updateInProgress = false;
+    console.log('updateGroupList completed');
   }
 }
 
@@ -151,7 +197,16 @@ async function ungroupAll() {
     const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
     
     for (const group of groups) {
-      const tabs = await chrome.tabs.query({ groupId: group.id });
+      // グループの存在確認（簡素化）
+      let tabs;
+      try {
+        tabs = await chrome.tabs.query({ groupId: group.id });
+      } catch (error) {
+        if (error.message.includes('No group with id')) {
+          continue; // エラーが出たグループはスキップ
+        }
+        throw error;
+      }
       const tabIds = tabs.map(tab => tab.id);
       
       if (tabIds.length > 0) {
@@ -724,6 +779,17 @@ async function editGroupNameFromMenu() {
     
     showStatus('グループ名を変更中...');
     
+    // グループの存在確認してから更新
+    try {
+      await chrome.tabGroups.get(targetGroup.id);
+    } catch (error) {
+      if (error.message.includes('No group with id')) {
+        showStatus('グループが既に削除されています');
+        return;
+      }
+      throw error;
+    }
+    
     // グループ名を更新
     await chrome.tabGroups.update(targetGroup.id, { title: newName });
     
@@ -949,6 +1015,80 @@ async function setCurrentTabName() {
   }
 }
 
+// 更新チェック機能
+async function checkForUpdates() {
+  try {
+    // 現在のバージョンを取得
+    const manifest = chrome.runtime.getManifest();
+    const currentVersion = manifest.version;
+    
+    // 最後のチェック時刻を確認（24時間に1回のみチェック）
+    const lastCheck = await chrome.storage.local.get('lastUpdateCheck');
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000; // 24時間をミリ秒で
+    
+    if (lastCheck.lastUpdateCheck && (now - lastCheck.lastUpdateCheck < oneDay)) {
+      // 24時間以内にチェック済み
+      return;
+    }
+    
+    // GitHub Releases APIから最新バージョンを取得
+    const response = await fetch('https://api.github.com/repos/umruumum/domain-tab-grouper/releases/latest');
+    if (!response.ok) {
+      console.warn('Failed to check for updates:', response.status);
+      return;
+    }
+    
+    const release = await response.json();
+    const latestVersion = release.tag_name.replace('v', ''); // "v0.3.1" -> "0.3.1"
+    
+    // バージョン比較
+    if (isNewerVersion(latestVersion, currentVersion)) {
+      showUpdateNotification(release);
+    }
+    
+    // チェック時刻を保存
+    await chrome.storage.local.set({ lastUpdateCheck: now });
+    
+  } catch (error) {
+    console.warn('Update check failed:', error);
+  }
+}
+
+// バージョン比較関数（semantic versioningに対応）
+function isNewerVersion(latest, current) {
+  const latestParts = latest.split('.').map(Number);
+  const currentParts = current.split('.').map(Number);
+  
+  for (let i = 0; i < 3; i++) {
+    const latestPart = latestParts[i] || 0;
+    const currentPart = currentParts[i] || 0;
+    
+    if (latestPart > currentPart) return true;
+    if (latestPart < currentPart) return false;
+  }
+  
+  return false;
+}
+
+// 更新通知を表示
+function showUpdateNotification(release) {
+  const notification = document.getElementById('updateNotification');
+  const updateLink = document.getElementById('updateLink');
+  const dismissBtn = document.getElementById('dismissUpdate');
+  
+  // リンクを設定
+  updateLink.href = release.html_url;
+  
+  // 通知を表示
+  notification.style.display = 'block';
+  
+  // 閉じるボタンのイベントリスナー
+  dismissBtn.onclick = () => {
+    notification.style.display = 'none';
+  };
+}
+
 // イベントリスナーを設定
 document.addEventListener('DOMContentLoaded', async () => {
   // 設定を読み込んでトグルスイッチを初期化
@@ -961,6 +1101,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateExcludedDomainsList();
   updateDomainColorsList();
   updateDomainNamesList();
+  
+  // 更新チェックを実行
+  checkForUpdates();
   
   // ボタンのイベントリスナー
   document.getElementById('groupTabs').addEventListener('click', groupTabs);
@@ -1040,15 +1183,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // グループ変更を監視してリアルタイム更新
   let currentGroupState = null;
+  let isUpdating = false; // 更新中フラグ
   
   async function checkGroupChanges() {
+    if (isUpdating) {
+      console.log('updateGroupList already in progress, skipping');
+      return;
+    }
+    
     try {
       const currentWindow = await chrome.windows.getCurrent();
       const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
       
       // グループごとのタブ数も含めて状態をチェック
       const groupStatePromises = groups.map(async (group) => {
-        const tabs = await chrome.tabs.query({ groupId: group.id });
+        // グループの存在確認
+        let tabs;
+        try {
+          tabs = await chrome.tabs.query({ groupId: group.id });
+        } catch (error) {
+          if (error.message.includes('No group with id')) {
+            return null; // このグループをスキップ
+          }
+          throw error;
+        }
         return {
           id: group.id,
           title: group.title,
@@ -1057,12 +1215,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
       });
       
-      const groupStates = await Promise.all(groupStatePromises);
+      const groupStates = (await Promise.all(groupStatePromises)).filter(state => state !== null);
       const newGroupState = JSON.stringify(groupStates);
       
       if (currentGroupState !== newGroupState) {
         currentGroupState = newGroupState;
-        await updateGroupList();
+        isUpdating = true;
+        try {
+          await updateGroupList();
+        } finally {
+          isUpdating = false;
+        }
       }
     } catch (error) {
       console.error('Error checking group changes:', error);

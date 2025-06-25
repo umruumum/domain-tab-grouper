@@ -1,13 +1,8 @@
-name: Claude Code Review
+name: Claude Code Review (Disabled - Use Light Version)
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    paths:
-      - "**.js"
-      - "**.html"
-      - "**.css"
-      - "**.json"
+  # Disabled to reduce token usage - use claude-review-light.yml instead
+  workflow_dispatch: # Manual trigger only
 
 jobs:
   claude-review:

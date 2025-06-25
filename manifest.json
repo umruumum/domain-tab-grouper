@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Domain Tab Grouper",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "description": "ドメインベースでタブを自動グループ化するChrome拡張機能",
   "permissions": [
     "tabs",
     "tabGroups",
     "activeTab",
     "storage"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*"
   ],
   "background": {
     "service_worker": "background.js",
