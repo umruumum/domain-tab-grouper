@@ -839,8 +839,8 @@ async function applyGroupName() {
   
   hideGroupNameInputMenu();
   
-  // addDomainName関数と同じロジックを使用
-  await addDomainName(currentContextDomain, newName);
+  // addDomainGroupName関数と同じロジックを使用
+  await addDomainGroupName(currentContextDomain, newName);
   
   // 適用後にcurrentContextDomainをリセット
   currentContextDomain = null;
@@ -929,7 +929,7 @@ async function updateDomainNamesList() {
 // ドメイングループ名を設定する関数
 async function addDomainGroupName(domain, name) {
   try {
-    console.log('addDomainName called with:', { domain, name });
+    console.log('addDomainGroupName called with:', { domain, name });
     
     if (!domain || domain.trim() === '') {
       showStatus('ドメインを入力してください');
@@ -993,7 +993,7 @@ async function addDomainGroupName(domain, name) {
       showStatus('バックグラウンドスクリプトとの通信に失敗しました');
     }
   } catch (error) {
-    console.error('Error in addDomainName:', error);
+    console.error('Error in addDomainGroupName:', error);
     showStatus('エラーが発生しました: ' + error.message);
   }
 }
