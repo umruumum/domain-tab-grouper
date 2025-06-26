@@ -1038,7 +1038,7 @@ async function updateDomainNamesList() {
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getDomainNames' });
     if (response && response.success) {
-      const nameList = document.getElementById('nameList');
+      const nameList = document.getElementById('groupNameList');
       const domainNames = response.domainNames;
       
       // スクロール位置を保存
@@ -1118,8 +1118,8 @@ async function addDomainName(domain, name) {
         await updateDomainNamesList();
         
         // 入力フィールドをクリア
-        const domainInput = document.getElementById('nameDomainInput');
-        const nameInput = document.getElementById('groupNameInput');
+        const domainInput = document.getElementById('groupNameDomainInput');
+        const nameInput = document.getElementById('groupNameCustomInput');
         if (domainInput) domainInput.value = '';
         if (nameInput) nameInput.value = '';
         
@@ -1183,13 +1183,13 @@ async function setCurrentTabName() {
       return;
     }
     
-    const nameInput = document.getElementById('groupNameInput');
+    const nameInput = document.getElementById('groupNameCustomInput');
     if (!nameInput.value) {
       showStatus('グループ名を入力してください');
       return;
     }
     
-    document.getElementById('nameDomainInput').value = domain;
+    document.getElementById('groupNameDomainInput').value = domain;
     await addDomainName(domain, nameInput.value);
   } catch (error) {
     console.error('Error setting current tab name:', error);
@@ -1310,31 +1310,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // ドメイン名関連のイベントリスナー
-  document.getElementById('addNameBtn').addEventListener('click', () => {
-    const domain = document.getElementById('nameDomainInput').value;
-    const name = document.getElementById('nameInput').value;
-    addDomainName(domain, name);
-  });
-  
-  document.getElementById('setCurrentNameBtn').addEventListener('click', setCurrentTabName);
-  
-  // Enterキーでドメイン名設定
-  document.getElementById('nameDomainInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      const domain = document.getElementById('nameDomainInput').value;
-      const name = document.getElementById('nameInput').value;
-      addDomainName(domain, name);
-    }
-  });
-  
-  document.getElementById('nameInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      const domain = document.getElementById('nameDomainInput').value;
-      const name = document.getElementById('nameInput').value;
-      addDomainName(domain, name);
-    }
-  });
 
   // ドメイン色関連のイベントリスナー
   document.getElementById('addColorBtn').addEventListener('click', () => {
@@ -1355,36 +1330,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ドメイングループ名関連のイベントリスナー
-  document.getElementById('addNameBtn').addEventListener('click', () => {
-    const domain = document.getElementById('nameDomainInput').value;
-    const name = document.getElementById('groupNameInput').value;
+  document.getElementById('addGroupNameBtn').addEventListener('click', () => {
+    const domain = document.getElementById('groupNameDomainInput').value;
+    const name = document.getElementById('groupNameCustomInput').value;
     addDomainName(domain, name);
   });
   
-  document.getElementById('setCurrentNameBtn').addEventListener('click', setCurrentTabName);
+  document.getElementById('setCurrentGroupNameBtn').addEventListener('click', setCurrentTabName);
   
   // Enterキーでドメイングループ名設定
-  document.getElementById('nameDomainInput').addEventListener('keypress', (e) => {
+  document.getElementById('groupNameDomainInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-      const domain = document.getElementById('nameDomainInput').value;
-      const name = document.getElementById('groupNameInput').value;
+      const domain = document.getElementById('groupNameDomainInput').value;
+      const name = document.getElementById('groupNameCustomInput').value;
       addDomainName(domain, name);
     }
   });
   
-  document.getElementById('groupNameInput').addEventListener('keypress', (e) => {
+  document.getElementById('groupNameCustomInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-      const domain = document.getElementById('nameDomainInput').value;
-      const name = document.getElementById('groupNameInput').value;
+      const domain = document.getElementById('groupNameDomainInput').value;
+      const name = document.getElementById('groupNameCustomInput').value;
       addDomainName(domain, name);
     }
   });
 
   // コンテキストメニューのイベントリスナー
-  document.getElementById('editNameMenu').addEventListener('click', editGroupNameFromMenu);
+  document.getElementById('renameGroupMenu').addEventListener('click', renameGroupFromMenu);
   document.getElementById('excludeDomainMenu').addEventListener('click', excludeDomainFromMenu);
   document.getElementById('changeColorMenu').addEventListener('click', changeColorFromMenu);
-  document.getElementById('renameGroupMenu').addEventListener('click', renameGroupFromMenu);
 
   // グループ色選択メニューのイベントリスナー
   document.getElementById('applyGroupColorBtn').addEventListener('click', applyGroupColor);
