@@ -1,0 +1,19 @@
+# スポンサーシップ設定
+# プロジェクトの継続的な開発をサポートしていただける方向け
+
+# GitHub Sponsors
+github: # [umruumum] # GitHubスポンサーが設定されている場合
+
+# その他のプラットフォーム
+# patreon: # Patreonユーザー名
+# open_collective: # Open Collectiveプロジェクト名
+# ko_fi: # Ko-fiユーザー名
+# tidelift: # Tideliftパッケージ名
+# community_bridge: # Community Bridgeプロジェクト名
+# liberapay: # Liberapayユーザー名
+# issuehunt: # IssueHuntユーザー名
+# otechie: # Otechieユーザー名
+# lfx_crowdfunding: # LFX Crowdfundingプロジェクト名
+
+# カスタムURL
+custom: # ['https://example.com'] # カスタム寄付URL

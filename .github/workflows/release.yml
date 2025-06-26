@@ -64,6 +64,9 @@ jobs:
           cp background.js extension-package/
           cp popup.html extension-package/
           cp popup.js extension-package/
+          cp content.js extension-package/
+          cp constants.js extension-package/
+          cp utils.js extension-package/
           
           # Copy icons if they exist
           if [ -d "icons" ]; then

@@ -1,0 +1,37 @@
+name: Claude Simple Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "**.js"
+
+jobs:
+  claude-simple-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check API Key
+        run: |
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "ANTHROPIC_API_KEY is not set"
+            exit 1
+          fi
+          echo "API key is configured"
+
+      - name: Run Claude Review
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: "claude-3-haiku-20240307"
+          direct_prompt: |
+            このPRの変更をレビューしてください。
+            
+            重要な問題があれば指摘、なければ「問題なし」と回答してください。

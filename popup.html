@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <style>
     body {
-      width: 300px;
-      padding: 20px;
+      width: 320px;
+      padding: 16px;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
     }
@@ -83,6 +83,82 @@
       background-color: #f8f9fa;
       border-radius: 4px;
       margin-top: 10px;
+    }
+
+    /* 更新通知のスタイル */
+    .update-notification {
+      background: linear-gradient(135deg, #4285f4, #34a853);
+      color: white;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-top: 8px;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    .update-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .update-icon {
+      font-size: 16px;
+    }
+
+    .update-text {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .update-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .update-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      padding: 4px 8px;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+
+    .update-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .dismiss-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 2px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .dismiss-btn:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
     
     .toggle-container {
@@ -164,16 +240,18 @@
     
     .domain-input-container {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 12px;
+      align-items: center;
     }
     
     .domain-input {
-      flex: 1;
-      padding: 8px 12px;
+      flex: 7;
+      padding: 6px 8px;
       border: 1px solid #dadce0;
       border-radius: 4px;
-      font-size: 13px;
+      font-size: 12px;
+      min-width: 0;
     }
     
     .domain-input:focus {
@@ -183,9 +261,17 @@
     }
     
     .btn.small {
-      padding: 8px 12px;
-      font-size: 12px;
+      padding: 6px 8px;
+      font-size: 11px;
       white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 50px;
+    }
+    
+    /* 除外ドメイン追加ボタン専用（7:3比率用） */
+    .btn.small.domain-add {
+      flex: 3;
+      text-align: center;
     }
     
     .excluded-list {
@@ -248,19 +334,21 @@
 
     .color-input-container {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 12px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     .color-select {
-      padding: 8px 12px;
+      padding: 6px 8px;
       border: 1px solid #dadce0;
       border-radius: 4px;
-      font-size: 13px;
+      font-size: 12px;
       background-color: white;
       cursor: pointer;
-      min-width: 100px;
+      max-width: 90px;
+      flex-shrink: 1;
     }
 
     .color-select:focus {
@@ -313,6 +401,80 @@
     .color-badge.grey { background-color: #9e9e9e; }
 
     .quick-color {
+      margin-top: 8px;
+    }
+
+    .domain-names-section {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #e8f5e8;
+      border-radius: 8px;
+      border: 1px solid #c8e6c9;
+    }
+
+    .name-input-container {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .group-name-input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 12px;
+      min-width: 80px;
+    }
+
+    .group-name-input:focus {
+      outline: none;
+      border-color: #4caf50;
+      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+
+    .name-list {
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .name-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      margin-bottom: 4px;
+      background-color: white;
+      border-radius: 4px;
+      border: 1px solid #c8e6c9;
+      font-size: 12px;
+    }
+
+    .name-domain {
+      flex: 1;
+      color: #333;
+      font-family: monospace;
+      word-break: break-all;
+      margin-right: 8px;
+    }
+
+    .name-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      background-color: #4caf50;
+      color: white;
+      margin-right: 8px;
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .quick-name {
       margin-top: 8px;
     }
 
@@ -388,9 +550,9 @@
       border-radius: 12px;
       box-shadow: 0 6px 16px rgba(0,0,0,0.2);
       z-index: 1001;
-      min-width: 280px;
+      width: 260px;
       display: none;
-      padding: 16px;
+      padding: 12px;
     }
 
     .color-selection-header {
@@ -490,6 +652,17 @@
 <body>
   <div class="header">
     <h1>Domain Tab Grouper</h1>
+    <!-- 更新通知エリア -->
+    <div class="update-notification" id="updateNotification" style="display: none;">
+      <div class="update-content">
+        <span class="update-icon">🆙</span>
+        <span class="update-text">新しいバージョンが利用可能です！</span>
+        <div class="update-actions">
+          <a href="#" id="updateLink" class="update-btn" target="_blank">ダウンロード</a>
+          <button id="dismissUpdate" class="dismiss-btn">×</button>
+        </div>
+      </div>
+    </div>
   </div>
   
   <div class="controls">
@@ -521,7 +694,7 @@
     <div class="section-title">除外ドメイン設定</div>
     <div class="domain-input-container">
       <input type="text" id="domainInput" class="domain-input" placeholder="example.com または *.example.com">
-      <button id="addDomainBtn" class="btn small">追加</button>
+      <button id="addDomainBtn" class="btn small domain-add">追加</button>
     </div>
     <div class="quick-exclude">
       <button id="excludeCurrentBtn" class="btn small secondary">現在のタブのドメインを除外</button>
@@ -568,6 +741,21 @@
     </div>
     <div class="color-list" id="colorList">
       <div class="empty-state">ドメイン色設定はありません</div>
+    </div>
+  </div>
+
+  <div class="domain-names-section">
+    <div class="section-title">ドメイングループ名設定</div>
+    <div class="name-input-container">
+      <input type="text" id="nameDomainInput" class="domain-input" placeholder="example.com">
+      <input type="text" id="groupNameInput" class="group-name-input" placeholder="カスタムグループ名">
+      <button id="addNameBtn" class="btn small">設定</button>
+    </div>
+    <div class="quick-name">
+      <button id="setCurrentNameBtn" class="btn small secondary">現在のタブのグループ名を設定</button>
+    </div>
+    <div class="name-list" id="nameList">
+      <div class="empty-state">ドメイングループ名設定はありません</div>
     </div>
   </div>
   

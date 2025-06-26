@@ -43,11 +43,33 @@ function showStatus(message) {
 }
 
 // グループリストを更新（現在のウィンドウのみ）
+let updateInProgress = false;
 async function updateGroupList() {
+  if (updateInProgress) {
+    console.log('updateGroupList already in progress, skipping');
+    return;
+  }
+  
+  updateInProgress = true;
+  console.log('updateGroupList started');
   try {
     // 現在のウィンドウを取得
     const currentWindow = await chrome.windows.getCurrent();
-    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
+    const allGroups = await chrome.tabGroups.query({ windowId: currentWindow.id });
+    
+    // API結果から重複を除去（念のため）
+    const uniqueGroupsMap = new Map();
+    allGroups.forEach(group => {
+      uniqueGroupsMap.set(group.id, group);
+    });
+    const groups = Array.from(uniqueGroupsMap.values());
+    
+    console.log(`Found ${allGroups.length} groups from API, ${groups.length} unique groups`);
+    if (allGroups.length !== groups.length) {
+      console.warn('Duplicate groups detected in API response:', 
+        allGroups.map(g => `ID:${g.id} Title:${g.title}`));
+    }
+    
     const groupList = document.getElementById('groupList');
     
     // スクロール位置を保存
@@ -61,8 +83,25 @@ async function updateGroupList() {
       return;
     }
     
+    // 重複防止のためのSet（グループIDで判定）
+    const displayedGroupIds = new Set();
+    
     for (const group of groups) {
-      const tabs = await chrome.tabs.query({ groupId: group.id });
+      // 同じIDのグループが既に表示されている場合はスキップ
+      if (displayedGroupIds.has(group.id)) {
+        console.warn(`Duplicate group ID detected: ${group.id} (${group.title}), skipping`);
+        continue;
+      }
+      // グループの存在確認
+      let tabs;
+      try {
+        tabs = await chrome.tabs.query({ groupId: group.id });
+      } catch (error) {
+        if (error.message.includes('No group with id')) {
+          continue; // エラーが出たグループはスキップ
+        }
+        throw error;
+      }
       const groupElement = document.createElement('div');
       groupElement.className = 'group-item';
       groupElement.style.borderColor = getColorCode(group.color);
@@ -78,6 +117,10 @@ async function updateGroupList() {
         <div class="group-title">${displayTitle}</div>
         <div class="group-count">${tabs.length} タブ</div>
       `;
+      
+      // グループIDを表示済みとしてマーク
+      displayedGroupIds.add(group.id);
+      console.log(`Displaying group: ID=${group.id}, Title=${group.title}, Tabs=${tabs.length}`);
       
       // グループタイトルが有効な場合のみクリックイベントを追加
       if (groupTitle && groupTitle.trim() !== '') {
@@ -97,6 +140,9 @@ async function updateGroupList() {
   } catch (error) {
     console.error('Error updating group list:', error);
     showStatus('エラーが発生しました');
+  } finally {
+    updateInProgress = false;
+    console.log('updateGroupList completed');
   }
 }
 
@@ -151,7 +197,16 @@ async function ungroupAll() {
     const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
     
     for (const group of groups) {
-      const tabs = await chrome.tabs.query({ groupId: group.id });
+      // グループの存在確認（簡素化）
+      let tabs;
+      try {
+        tabs = await chrome.tabs.query({ groupId: group.id });
+      } catch (error) {
+        if (error.message.includes('No group with id')) {
+          continue; // エラーが出たグループはスキップ
+        }
+        throw error;
+      }
       const tabIds = tabs.map(tab => tab.id);
       
       if (tabIds.length > 0) {
@@ -813,7 +868,7 @@ function showGroupColorSelectionMenu() {
   
   // メニューの位置を計算（画面中央に表示）
   const popupRect = document.body.getBoundingClientRect();
-  colorMenu.style.left = Math.max(10, (popupRect.width - 280) / 2) + 'px';
+  colorMenu.style.left = Math.max(10, (popupRect.width - 260) / 2) + 'px';
   colorMenu.style.top = '150px';
   colorMenu.style.display = 'block';
   
@@ -978,6 +1033,244 @@ function isValidDomain(domain) {
   return domainRegex.test(domain);
 }
 
+// ドメイングループ名リストを更新する関数
+async function updateDomainNamesList() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getDomainNames' });
+    if (response && response.success) {
+      const nameList = document.getElementById('nameList');
+      const domainNames = response.domainNames;
+      
+      // スクロール位置を保存
+      const scrollTop = nameList.scrollTop;
+      
+      if (Object.keys(domainNames).length === 0) {
+        nameList.innerHTML = '<div class="empty-state">ドメイングループ名設定はありません</div>';
+      } else {
+        nameList.innerHTML = Object.entries(domainNames).map(([domain, name]) => `
+          <div class="name-item">
+            <span class="name-domain">${domain}</span>
+            <span class="name-badge">${name}</span>
+            <button class="remove-btn" data-domain="${domain}">削除</button>
+          </div>
+        `).join('');
+        
+        // 削除ボタンのイベントリスナーを追加
+        nameList.querySelectorAll('.remove-btn').forEach(btn => {
+          btn.addEventListener('click', () => removeDomainName(btn.dataset.domain));
+        });
+      }
+      
+      // スクロール位置を復元
+      nameList.scrollTop = scrollTop;
+    }
+  } catch (error) {
+    console.error('Error updating domain names list:', error);
+  }
+}
+
+// ドメイングループ名を設定する関数
+async function addDomainName(domain, name) {
+  try {
+    console.log('addDomainName called with:', { domain, name });
+    
+    if (!domain || domain.trim() === '') {
+      showStatus('ドメインを入力してください');
+      return;
+    }
+    
+    if (!name || name.trim() === '') {
+      showStatus('グループ名を入力してください');
+      return;
+    }
+    
+    domain = domain.trim().toLowerCase();
+    name = name.trim();
+    
+    console.log('Processed values:', { domain, name });
+    
+    // 簡単なバリデーション
+    if (!isValidDomain(domain)) {
+      showStatus('無効なドメイン形式です');
+      return;
+    }
+    
+    showStatus('ドメイングループ名を設定中...');
+    console.log('Sending message to background script...');
+    
+    try {
+      // 5秒のタイムアウトを設定
+      const response = await Promise.race([
+        chrome.runtime.sendMessage({ 
+          action: 'setDomainName', 
+          domain: domain,
+          name: name
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout: 5秒後にタイムアウトしました')), 5000)
+        )
+      ]);
+      
+      console.log('Response received:', response);
+      
+      if (response && response.success) {
+        showStatus(`${domain} のグループ名を ${name} に設定しました`);
+        await updateDomainNamesList();
+        
+        // 入力フィールドをクリア
+        const domainInput = document.getElementById('nameDomainInput');
+        const nameInput = document.getElementById('groupNameInput');
+        if (domainInput) domainInput.value = '';
+        if (nameInput) nameInput.value = '';
+        
+        // グループリストも更新（名前が変わったため）
+        setTimeout(() => {
+          updateGroupList();
+        }, 500);
+      } else {
+        console.error('Background script returned error:', response);
+        showStatus((response && response.error) || 'ドメイングループ名の設定に失敗しました');
+      }
+    } catch (messageError) {
+      console.error('Error sending message to background script:', messageError);
+      showStatus('バックグラウンドスクリプトとの通信に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error in addDomainName:', error);
+    showStatus('エラーが発生しました: ' + error.message);
+  }
+}
+
+// ドメイングループ名を削除する関数
+async function removeDomainName(domain) {
+  try {
+    showStatus('ドメイングループ名設定を削除中...');
+    
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'removeDomainName', 
+      domain: domain 
+    });
+    
+    if (response && response.success) {
+      showStatus(`${domain} のグループ名設定を削除しました`);
+      await updateDomainNamesList();
+      
+      // グループリストも更新（名前が変わったため）
+      setTimeout(() => {
+        updateGroupList();
+      }, 500);
+    } else {
+      showStatus((response && response.error) || 'ドメイングループ名設定の削除に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error removing domain name:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// 現在のタブのドメイングループ名を設定する関数
+async function setCurrentTabName() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url) {
+      showStatus('現在のタブのドメインを取得できません');
+      return;
+    }
+    
+    const domain = extractDomain(tab.url);
+    if (!domain) {
+      showStatus('このタブはグループ化対象外です');
+      return;
+    }
+    
+    const nameInput = document.getElementById('groupNameInput');
+    if (!nameInput.value) {
+      showStatus('グループ名を入力してください');
+      return;
+    }
+    
+    document.getElementById('nameDomainInput').value = domain;
+    await addDomainName(domain, nameInput.value);
+  } catch (error) {
+    console.error('Error setting current tab name:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// 更新チェック機能
+async function checkForUpdates() {
+  try {
+    // 現在のバージョンを取得
+    const manifest = chrome.runtime.getManifest();
+    const currentVersion = manifest.version;
+    
+    // 最後のチェック時刻を確認（24時間に1回のみチェック）
+    const lastCheck = await chrome.storage.local.get('lastUpdateCheck');
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000; // 24時間をミリ秒で
+    
+    if (lastCheck.lastUpdateCheck && (now - lastCheck.lastUpdateCheck < oneDay)) {
+      // 24時間以内にチェック済み
+      return;
+    }
+    
+    // GitHub Releases APIから最新バージョンを取得
+    const response = await fetch('https://api.github.com/repos/umruumum/domain-tab-grouper/releases/latest');
+    if (!response.ok) {
+      console.warn('Failed to check for updates:', response.status);
+      return;
+    }
+    
+    const release = await response.json();
+    const latestVersion = release.tag_name.replace('v', ''); // "v0.3.1" -> "0.3.1"
+    
+    // バージョン比較
+    if (isNewerVersion(latestVersion, currentVersion)) {
+      showUpdateNotification(release);
+    }
+    
+    // チェック時刻を保存
+    await chrome.storage.local.set({ lastUpdateCheck: now });
+    
+  } catch (error) {
+    console.warn('Update check failed:', error);
+  }
+}
+
+// バージョン比較関数（semantic versioningに対応）
+function isNewerVersion(latest, current) {
+  const latestParts = latest.split('.').map(Number);
+  const currentParts = current.split('.').map(Number);
+  
+  for (let i = 0; i < 3; i++) {
+    const latestPart = latestParts[i] || 0;
+    const currentPart = currentParts[i] || 0;
+    
+    if (latestPart > currentPart) return true;
+    if (latestPart < currentPart) return false;
+  }
+  
+  return false;
+}
+
+// 更新通知を表示
+function showUpdateNotification(release) {
+  const notification = document.getElementById('updateNotification');
+  const updateLink = document.getElementById('updateLink');
+  const dismissBtn = document.getElementById('dismissUpdate');
+  
+  // リンクを設定
+  updateLink.href = release.html_url;
+  
+  // 通知を表示
+  notification.style.display = 'block';
+  
+  // 閉じるボタンのイベントリスナー
+  dismissBtn.onclick = () => {
+    notification.style.display = 'none';
+  };
+}
+
 // イベントリスナーを設定
 document.addEventListener('DOMContentLoaded', async () => {
   // 設定を読み込んでトグルスイッチを初期化
@@ -1061,7 +1354,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // ドメイングループ名関連のイベントリスナー
+  document.getElementById('addNameBtn').addEventListener('click', () => {
+    const domain = document.getElementById('nameDomainInput').value;
+    const name = document.getElementById('groupNameInput').value;
+    addDomainName(domain, name);
+  });
+  
+  document.getElementById('setCurrentNameBtn').addEventListener('click', setCurrentTabName);
+  
+  // Enterキーでドメイングループ名設定
+  document.getElementById('nameDomainInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const domain = document.getElementById('nameDomainInput').value;
+      const name = document.getElementById('groupNameInput').value;
+      addDomainName(domain, name);
+    }
+  });
+  
+  document.getElementById('groupNameInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const domain = document.getElementById('nameDomainInput').value;
+      const name = document.getElementById('groupNameInput').value;
+      addDomainName(domain, name);
+    }
+  });
+
   // コンテキストメニューのイベントリスナー
+  document.getElementById('editNameMenu').addEventListener('click', editGroupNameFromMenu);
   document.getElementById('excludeDomainMenu').addEventListener('click', excludeDomainFromMenu);
   document.getElementById('changeColorMenu').addEventListener('click', changeColorFromMenu);
   document.getElementById('renameGroupMenu').addEventListener('click', renameGroupFromMenu);
@@ -1083,15 +1403,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // グループ変更を監視してリアルタイム更新
   let currentGroupState = null;
+  let isUpdating = false; // 更新中フラグ
   
   async function checkGroupChanges() {
+    if (isUpdating) {
+      console.log('updateGroupList already in progress, skipping');
+      return;
+    }
+    
     try {
       const currentWindow = await chrome.windows.getCurrent();
       const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
       
       // グループごとのタブ数も含めて状態をチェック
       const groupStatePromises = groups.map(async (group) => {
-        const tabs = await chrome.tabs.query({ groupId: group.id });
+        // グループの存在確認
+        let tabs;
+        try {
+          tabs = await chrome.tabs.query({ groupId: group.id });
+        } catch (error) {
+          if (error.message.includes('No group with id')) {
+            return null; // このグループをスキップ
+          }
+          throw error;
+        }
         return {
           id: group.id,
           title: group.title,
@@ -1100,12 +1435,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
       });
       
-      const groupStates = await Promise.all(groupStatePromises);
+      const groupStates = (await Promise.all(groupStatePromises)).filter(state => state !== null);
       const newGroupState = JSON.stringify(groupStates);
       
       if (currentGroupState !== newGroupState) {
         currentGroupState = newGroupState;
-        await updateGroupList();
+        isUpdating = true;
+        try {
+          await updateGroupList();
+        } finally {
+          isUpdating = false;
+        }
       }
     } catch (error) {
       console.error('Error checking group changes:', error);
