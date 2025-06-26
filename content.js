@@ -1,7 +1,7 @@
 // Content script for favicon color extraction
 // Service WorkerではImage/Canvasが使用できないため、content scriptで色抽出を行う
 
-// CONFIG定数をインライン定義（Chrome拡張のcontent scriptはESModulesを正しくサポートしていない）
+// 設定定数（constants.jsから複製）
 const CONFIG = {
   FAVICON_CANVAS_SIZE: 32,
   COLOR_QUANTIZATION_LEVEL: 32
@@ -9,8 +9,11 @@ const CONFIG = {
 
 // faviconから主要色を抽出する関数
 function extractDominantColorFromFavicon(faviconUrl) {
+  console.log(`[Content Script] Extracting color from favicon: ${faviconUrl}`);
+  
   return new Promise((resolve) => {
     if (!faviconUrl || faviconUrl.startsWith('chrome://') || faviconUrl.startsWith('chrome-extension://')) {
+      console.log(`[Content Script] Invalid favicon URL: ${faviconUrl}`);
       resolve(null);
       return;
     }
@@ -66,6 +69,7 @@ function extractDominantColorFromFavicon(faviconUrl) {
           }
         }
         
+        console.log(`[Content Script] Extracted dominant color:`, dominantColor, `from ${Object.keys(colorCounts).length} colors`);
         resolve(dominantColor);
       } catch (error) {
         console.error('Error extracting color from favicon:', error);
@@ -73,20 +77,27 @@ function extractDominantColorFromFavicon(faviconUrl) {
       }
     };
     
-    img.onerror = () => resolve(null);
+    img.onerror = () => {
+      console.log(`[Content Script] Failed to load favicon: ${faviconUrl}`);
+      resolve(null);
+    };
+    
     img.src = faviconUrl;
   });
 }
 
 // background scriptからのメッセージをリッスン
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log(`[Content Script] Received message:`, message);
+  
   if (message.action === 'extractFaviconColor') {
     extractDominantColorFromFavicon(message.faviconUrl)
       .then(color => {
+        console.log(`[Content Script] Sending response:`, { success: true, color });
         sendResponse({ success: true, color: color });
       })
       .catch(error => {
-        console.error('Error in favicon color extraction:', error);
+        console.error('[Content Script] Error in favicon color extraction:', error);
         sendResponse({ success: false, error: error.message });
       });
     

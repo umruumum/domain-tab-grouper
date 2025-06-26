@@ -1,17 +1,5 @@
 // ポップアップUIの制御スクリプト
 
-// Chrome拡張機能のカラーコード定義（constants.jsから移植）
-const COLOR_CODES = {
-  grey: '#9aa0a6',
-  blue: '#4285f4',
-  red: '#ea4335',
-  yellow: '#fbbc04',
-  green: '#34a853',
-  pink: '#ff8bcb',
-  purple: '#9c27b0',
-  cyan: '#00bcd4'
-};
-
 // ドメインからホスト名を抽出する関数
 function extractDomain(url) {
   try {
@@ -34,15 +22,17 @@ async function saveSettings(settings) {
 // 設定を読み込む関数
 async function loadSettings() {
   try {
-    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains', 'domainColors']);
+    const result = await chrome.storage.local.get(['autoGroupEnabled', 'excludedDomains', 'domainColors', 'domainNames', 'useSubdomainGrouping']);
     return {
       autoGroupEnabled: result.autoGroupEnabled !== false, // デフォルトはtrue
       excludedDomains: result.excludedDomains || [], // デフォルトは空配列
-      domainColors: result.domainColors || {} // デフォルトは空オブジェクト
+      domainColors: result.domainColors || {}, // デフォルトは空オブジェクト
+      domainNames: result.domainNames || {}, // デフォルトは空オブジェクト
+      useSubdomainGrouping: result.useSubdomainGrouping || false // デフォルトはfalse
     };
   } catch (error) {
     console.error('Error loading settings:', error);
-    return { autoGroupEnabled: true, excludedDomains: [], domainColors: {} };
+    return { autoGroupEnabled: true, excludedDomains: [], domainColors: {}, domainNames: {}, useSubdomainGrouping: false };
   }
 }
 
@@ -158,7 +148,17 @@ async function updateGroupList() {
 
 // グループ色をカラーコードに変換
 function getColorCode(color) {
-  return COLOR_CODES[color] || COLOR_CODES.blue;
+  const colorMap = {
+    grey: '#9aa0a6',
+    blue: '#4285f4',
+    red: '#ea4335',
+    yellow: '#fbbc04',
+    green: '#34a853',
+    pink: '#ff8bcb',
+    purple: '#9c27b0',
+    cyan: '#00bcd4'
+  };
+  return colorMap[color] || '#4285f4';
 }
 
 
@@ -248,6 +248,34 @@ async function toggleAutoGroup() {
     }
   } catch (error) {
     console.error('Error toggling auto group:', error);
+    showStatus('設定の更新に失敗しました');
+  }
+}
+
+// サブドメイングループ化の設定を切り替える関数
+async function toggleSubdomainGrouping() {
+  try {
+    const toggle = document.getElementById('subdomainGroupingToggle');
+    const enabled = toggle.checked;
+    
+    // 設定を保存
+    await saveSettings({ useSubdomainGrouping: enabled });
+    
+    // バックグラウンドスクリプトに設定変更を通知
+    await chrome.runtime.sendMessage({ 
+      action: 'toggleSubdomainGrouping', 
+      enabled: enabled 
+    });
+    
+    // ステータス更新
+    showStatus(enabled ? 'サブドメイン単位グループ化が有効になりました' : 'ルートドメイン単位グループ化に戻しました');
+    
+    // グループリストを更新（グループ名が変わる可能性があるため）
+    setTimeout(() => {
+      updateGroupList();
+    }, 1000);
+  } catch (error) {
+    console.error('Error toggling subdomain grouping:', error);
     showStatus('設定の更新に失敗しました');
   }
 }
@@ -364,6 +392,151 @@ async function excludeCurrentTabDomain() {
     await addExcludedDomain(domain);
   } catch (error) {
     console.error('Error excluding current tab domain:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// ドメイン名リストを更新する関数
+async function updateDomainNamesList() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getDomainNames' });
+    if (response && response.success) {
+      const nameList = document.getElementById('nameList');
+      const domainNames = response.domainNames;
+      
+      // スクロール位置を保存
+      const scrollTop = nameList.scrollTop;
+      
+      if (Object.keys(domainNames).length === 0) {
+        nameList.innerHTML = '<div class="empty-state">ドメイン名設定はありません</div>';
+      } else {
+        nameList.innerHTML = Object.entries(domainNames).map(([domain, name]) => `
+          <div class="name-item">
+            <span class="name-domain">${domain}</span>
+            <span class="name-display">${name}</span>
+            <button class="remove-btn" data-domain="${domain}">削除</button>
+          </div>
+        `).join('');
+        
+        // 削除ボタンのイベントリスナーを追加
+        nameList.querySelectorAll('.remove-btn').forEach(btn => {
+          btn.addEventListener('click', () => removeDomainName(btn.dataset.domain));
+        });
+      }
+      
+      // スクロール位置を復元
+      nameList.scrollTop = scrollTop;
+    }
+  } catch (error) {
+    console.error('Error updating domain names list:', error);
+  }
+}
+
+// ドメイン名を設定する関数
+async function addDomainName(domain, name) {
+  try {
+    if (!domain || domain.trim() === '') {
+      showStatus('ドメインを入力してください');
+      return;
+    }
+    
+    if (!name || name.trim() === '') {
+      showStatus('グループ名を入力してください');
+      return;
+    }
+    
+    domain = domain.trim().toLowerCase();
+    name = name.trim();
+    
+    // 簡単なバリデーション
+    if (!isValidDomain(domain)) {
+      showStatus('無効なドメイン形式です');
+      return;
+    }
+    
+    showStatus('ドメイン名を設定中...');
+    
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'setDomainName', 
+      domain: domain,
+      name: name
+    });
+    
+    if (response && response.success) {
+      showStatus(`${domain} のグループ名を "${name}" に設定しました`);
+      await updateDomainNamesList();
+      
+      // 入力フィールドをクリア（存在する場合のみ）
+      const domainInput = document.getElementById('nameDomainInput');
+      const nameInput = document.getElementById('nameInput');
+      if (domainInput) domainInput.value = '';
+      if (nameInput) nameInput.value = '';
+      
+      // グループリストも更新（名前が変わったため）
+      setTimeout(() => {
+        updateGroupList();
+      }, 500);
+    } else {
+      showStatus((response && response.error) || 'ドメイン名の設定に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error setting domain name:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// ドメイン名を削除する関数
+async function removeDomainName(domain) {
+  try {
+    showStatus('ドメイン名設定を削除中...');
+    
+    const response = await chrome.runtime.sendMessage({ 
+      action: 'removeDomainName', 
+      domain: domain 
+    });
+    
+    if (response && response.success) {
+      showStatus(`${domain} のグループ名設定を削除しました`);
+      await updateDomainNamesList();
+      
+      // グループリストも更新（名前が変わったため）
+      setTimeout(() => {
+        updateGroupList();
+      }, 500);
+    } else {
+      showStatus((response && response.error) || 'ドメイン名設定の削除に失敗しました');
+    }
+  } catch (error) {
+    console.error('Error removing domain name:', error);
+    showStatus('エラーが発生しました');
+  }
+}
+
+// 現在のタブのドメイン名を設定する関数
+async function setCurrentTabName() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url) {
+      showStatus('現在のタブのドメインを取得できません');
+      return;
+    }
+    
+    const domain = extractDomain(tab.url);
+    if (!domain) {
+      showStatus('このタブはグループ化対象外です');
+      return;
+    }
+    
+    const nameInput = document.getElementById('nameInput');
+    if (!nameInput.value) {
+      showStatus('グループ名を入力してください');
+      return;
+    }
+    
+    document.getElementById('nameDomainInput').value = domain;
+    await addDomainName(domain, nameInput.value);
+  } catch (error) {
+    console.error('Error setting current tab name:', error);
     showStatus('エラーが発生しました');
   }
 }
@@ -652,6 +825,24 @@ async function excludeDomainFromMenu() {
   }
 }
 
+// グループ名変更（コンテキストメニューから）
+async function renameGroupFromMenu() {
+  if (!currentContextDomain) {
+    showStatus('ドメインが選択されていません');
+    return;
+  }
+  
+  // currentContextDomainを保持するため、先にドメインを保存
+  const domainToProcess = currentContextDomain;
+  
+  hideContextMenu();
+  
+  // ドメインを復元
+  currentContextDomain = domainToProcess;
+  
+  showGroupNameInputMenu();
+}
+
 // 色変更（コンテキストメニューから）
 async function changeColorFromMenu() {
   
@@ -738,80 +929,71 @@ function cancelGroupColor() {
   currentContextDomain = null;
 }
 
-// グループ名編集（コンテキストメニューから）
-async function editGroupNameFromMenu() {
+// グループ名入力メニューを表示
+function showGroupNameInputMenu() {
+  const nameMenu = document.getElementById('groupNameInputMenu');
+  
+  // メニューの位置を計算（画面中央に表示）
+  const popupRect = document.body.getBoundingClientRect();
+  nameMenu.style.left = Math.max(10, (popupRect.width - 280) / 2) + 'px';
+  nameMenu.style.top = '150px';
+  nameMenu.style.display = 'block';
+  
+  // 入力フィールドをリセット
+  const groupNameInput = document.getElementById('groupNameInput');
+  groupNameInput.value = '';
+  groupNameInput.focus();
+  
+  // クリック外し処理を有効化
+  setTimeout(() => {
+    document.addEventListener('click', handleGroupNameMenuClickOutside);
+  }, 100);
+}
+
+// グループ名入力メニューを非表示
+function hideGroupNameInputMenu() {
+  const nameMenu = document.getElementById('groupNameInputMenu');
+  nameMenu.style.display = 'none';
+  document.removeEventListener('click', handleGroupNameMenuClickOutside);
+}
+
+// グループ名入力メニュー外をクリックしたときの処理
+function handleGroupNameMenuClickOutside(event) {
+  const nameMenu = document.getElementById('groupNameInputMenu');
+  if (!nameMenu.contains(event.target)) {
+    hideGroupNameInputMenu();
+  }
+}
+
+// グループ名を適用する処理
+async function applyGroupName() {
+  const groupNameInput = document.getElementById('groupNameInput');
+  const newName = groupNameInput.value.trim();
+  
   if (!currentContextDomain) {
-    showStatus('グループが選択されていません');
+    showStatus('ドメインが選択されていません');
     return;
   }
   
-  // 現在のグループを特定
-  try {
-    const currentWindow = await chrome.windows.getCurrent();
-    const groups = await chrome.tabGroups.query({ windowId: currentWindow.id });
-    const targetGroup = groups.find(group => group.title === currentContextDomain);
-    
-    if (!targetGroup) {
-      showStatus('グループが見つかりません');
-      return;
-    }
-    
-    hideContextMenu();
-    
-    // プロンプトで新しいグループ名を入力
-    const currentName = targetGroup.title;
-    const newName = prompt(`グループ名を編集してください:\n(現在: ${currentName})`, currentName);
-    
-    if (newName === null) {
-      // キャンセルされた場合
-      return;
-    }
-    
-    if (newName.trim() === '') {
-      showStatus('グループ名を空にすることはできません');
-      return;
-    }
-    
-    if (newName === currentName) {
-      // 変更されていない場合
-      return;
-    }
-    
-    showStatus('グループ名を変更中...');
-    
-    // グループの存在確認してから更新
-    try {
-      await chrome.tabGroups.get(targetGroup.id);
-    } catch (error) {
-      if (error.message.includes('No group with id')) {
-        showStatus('グループが既に削除されています');
-        return;
-      }
-      throw error;
-    }
-    
-    // グループ名を更新
-    await chrome.tabGroups.update(targetGroup.id, { title: newName });
-    
-    // ドメイン名設定を更新（該当する場合）
-    const response = await chrome.runtime.sendMessage({ 
-      action: 'setDomainName', 
-      domain: currentContextDomain,
-      name: newName
-    });
-    
-    if (response && response.success) {
-      showStatus(`グループ名を「${newName}」に変更しました`);
-      await updateGroupList();
-      await updateDomainNamesList();
-    } else {
-      showStatus('グループ名の設定保存に失敗しました');
-    }
-    
-  } catch (error) {
-    console.error('Error editing group name:', error);
-    showStatus('グループ名の変更に失敗しました');
+  if (!newName) {
+    showStatus('グループ名を入力してください');
+    return;
   }
+  
+  hideGroupNameInputMenu();
+  
+  // addDomainName関数と同じロジックを使用
+  await addDomainName(currentContextDomain, newName);
+  
+  // 適用後にcurrentContextDomainをリセット
+  currentContextDomain = null;
+}
+
+// グループ名入力をキャンセルする処理
+function cancelGroupName() {
+  hideGroupNameInputMenu();
+  // キャンセル時にcurrentContextDomainをリセット
+  currentContextDomain = null;
 }
 
 
@@ -1094,7 +1276,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 設定を読み込んでトグルスイッチを初期化
   const settings = await loadSettings();
   const toggle = document.getElementById('autoGroupToggle');
+  const subdomainToggle = document.getElementById('subdomainGroupingToggle');
   toggle.checked = settings.autoGroupEnabled;
+  subdomainToggle.checked = settings.useSubdomainGrouping;
   
   // 初期化時にグループリストと除外ドメインリスト、ドメイン色リスト、ドメイン名リストを更新
   updateGroupList();
@@ -1102,15 +1286,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateDomainColorsList();
   updateDomainNamesList();
   
-  // 更新チェックを実行
-  checkForUpdates();
-  
   // ボタンのイベントリスナー
   document.getElementById('groupTabs').addEventListener('click', groupTabs);
   document.getElementById('ungroupAll').addEventListener('click', ungroupAll);
   
   // トグルスイッチのイベントリスナー
   toggle.addEventListener('change', toggleAutoGroup);
+  subdomainToggle.addEventListener('change', toggleSubdomainGrouping);
   
   // 除外ドメイン関連のイベントリスナー
   document.getElementById('addDomainBtn').addEventListener('click', () => {
@@ -1125,6 +1307,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Enter') {
       const domain = document.getElementById('domainInput').value;
       addExcludedDomain(domain);
+    }
+  });
+
+  // ドメイン名関連のイベントリスナー
+  document.getElementById('addNameBtn').addEventListener('click', () => {
+    const domain = document.getElementById('nameDomainInput').value;
+    const name = document.getElementById('nameInput').value;
+    addDomainName(domain, name);
+  });
+  
+  document.getElementById('setCurrentNameBtn').addEventListener('click', setCurrentTabName);
+  
+  // Enterキーでドメイン名設定
+  document.getElementById('nameDomainInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const domain = document.getElementById('nameDomainInput').value;
+      const name = document.getElementById('nameInput').value;
+      addDomainName(domain, name);
+    }
+  });
+  
+  document.getElementById('nameInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const domain = document.getElementById('nameDomainInput').value;
+      const name = document.getElementById('nameInput').value;
+      addDomainName(domain, name);
     }
   });
 
@@ -1176,10 +1384,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('editNameMenu').addEventListener('click', editGroupNameFromMenu);
   document.getElementById('excludeDomainMenu').addEventListener('click', excludeDomainFromMenu);
   document.getElementById('changeColorMenu').addEventListener('click', changeColorFromMenu);
+  document.getElementById('renameGroupMenu').addEventListener('click', renameGroupFromMenu);
 
   // グループ色選択メニューのイベントリスナー
   document.getElementById('applyGroupColorBtn').addEventListener('click', applyGroupColor);
   document.getElementById('cancelGroupColorBtn').addEventListener('click', cancelGroupColor);
+  
+  // グループ名入力メニューのイベントリスナー
+  document.getElementById('applyGroupNameBtn').addEventListener('click', applyGroupName);
+  document.getElementById('cancelGroupNameBtn').addEventListener('click', cancelGroupName);
+  
+  // グループ名入力でEnterキー
+  document.getElementById('groupNameInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      applyGroupName();
+    }
+  });
   
   // グループ変更を監視してリアルタイム更新
   let currentGroupState = null;
