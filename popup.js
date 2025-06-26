@@ -396,150 +396,7 @@ async function excludeCurrentTabDomain() {
   }
 }
 
-// ドメイン名リストを更新する関数
-async function updateDomainNamesList() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'getDomainNames' });
-    if (response && response.success) {
-      const nameList = document.getElementById('nameList');
-      const domainNames = response.domainNames;
-      
-      // スクロール位置を保存
-      const scrollTop = nameList.scrollTop;
-      
-      if (Object.keys(domainNames).length === 0) {
-        nameList.innerHTML = '<div class="empty-state">ドメイン名設定はありません</div>';
-      } else {
-        nameList.innerHTML = Object.entries(domainNames).map(([domain, name]) => `
-          <div class="name-item">
-            <span class="name-domain">${domain}</span>
-            <span class="name-display">${name}</span>
-            <button class="remove-btn" data-domain="${domain}">削除</button>
-          </div>
-        `).join('');
-        
-        // 削除ボタンのイベントリスナーを追加
-        nameList.querySelectorAll('.remove-btn').forEach(btn => {
-          btn.addEventListener('click', () => removeDomainName(btn.dataset.domain));
-        });
-      }
-      
-      // スクロール位置を復元
-      nameList.scrollTop = scrollTop;
-    }
-  } catch (error) {
-    console.error('Error updating domain names list:', error);
-  }
-}
 
-// ドメイン名を設定する関数
-async function addDomainName(domain, name) {
-  try {
-    if (!domain || domain.trim() === '') {
-      showStatus('ドメインを入力してください');
-      return;
-    }
-    
-    if (!name || name.trim() === '') {
-      showStatus('グループ名を入力してください');
-      return;
-    }
-    
-    domain = domain.trim().toLowerCase();
-    name = name.trim();
-    
-    // 簡単なバリデーション
-    if (!isValidDomain(domain)) {
-      showStatus('無効なドメイン形式です');
-      return;
-    }
-    
-    showStatus('ドメイン名を設定中...');
-    
-    const response = await chrome.runtime.sendMessage({ 
-      action: 'setDomainName', 
-      domain: domain,
-      name: name
-    });
-    
-    if (response && response.success) {
-      showStatus(`${domain} のグループ名を "${name}" に設定しました`);
-      await updateDomainNamesList();
-      
-      // 入力フィールドをクリア（存在する場合のみ）
-      const domainInput = document.getElementById('nameDomainInput');
-      const nameInput = document.getElementById('nameInput');
-      if (domainInput) domainInput.value = '';
-      if (nameInput) nameInput.value = '';
-      
-      // グループリストも更新（名前が変わったため）
-      setTimeout(() => {
-        updateGroupList();
-      }, 500);
-    } else {
-      showStatus((response && response.error) || 'ドメイン名の設定に失敗しました');
-    }
-  } catch (error) {
-    console.error('Error setting domain name:', error);
-    showStatus('エラーが発生しました');
-  }
-}
-
-// ドメイン名を削除する関数
-async function removeDomainName(domain) {
-  try {
-    showStatus('ドメイン名設定を削除中...');
-    
-    const response = await chrome.runtime.sendMessage({ 
-      action: 'removeDomainName', 
-      domain: domain 
-    });
-    
-    if (response && response.success) {
-      showStatus(`${domain} のグループ名設定を削除しました`);
-      await updateDomainNamesList();
-      
-      // グループリストも更新（名前が変わったため）
-      setTimeout(() => {
-        updateGroupList();
-      }, 500);
-    } else {
-      showStatus((response && response.error) || 'ドメイン名設定の削除に失敗しました');
-    }
-  } catch (error) {
-    console.error('Error removing domain name:', error);
-    showStatus('エラーが発生しました');
-  }
-}
-
-// 現在のタブのドメイン名を設定する関数
-async function setCurrentTabName() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.url) {
-      showStatus('現在のタブのドメインを取得できません');
-      return;
-    }
-    
-    const domain = extractDomain(tab.url);
-    if (!domain) {
-      showStatus('このタブはグループ化対象外です');
-      return;
-    }
-    
-    const nameInput = document.getElementById('nameInput');
-    if (!nameInput.value) {
-      showStatus('グループ名を入力してください');
-      return;
-    }
-    
-    document.getElementById('nameDomainInput').value = domain;
-    await addDomainName(domain, nameInput.value);
-  } catch (error) {
-    console.error('Error setting current tab name:', error);
-    showStatus('エラーが発生しました');
-  }
-}
 
 // ドメイン色リストを更新する関数
 async function updateDomainColorsList() {
@@ -1057,7 +914,7 @@ async function updateDomainNamesList() {
         
         // 削除ボタンのイベントリスナーを追加
         nameList.querySelectorAll('.remove-btn').forEach(btn => {
-          btn.addEventListener('click', () => removeDomainName(btn.dataset.domain));
+          btn.addEventListener('click', () => removeDomainGroupName(btn.dataset.domain));
         });
       }
       
@@ -1070,7 +927,7 @@ async function updateDomainNamesList() {
 }
 
 // ドメイングループ名を設定する関数
-async function addDomainName(domain, name) {
+async function addDomainGroupName(domain, name) {
   try {
     console.log('addDomainName called with:', { domain, name });
     
@@ -1142,7 +999,7 @@ async function addDomainName(domain, name) {
 }
 
 // ドメイングループ名を削除する関数
-async function removeDomainName(domain) {
+async function removeDomainGroupName(domain) {
   try {
     showStatus('ドメイングループ名設定を削除中...');
     
@@ -1169,7 +1026,7 @@ async function removeDomainName(domain) {
 }
 
 // 現在のタブのドメイングループ名を設定する関数
-async function setCurrentTabName() {
+async function setCurrentTabGroupName() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.url) {
@@ -1190,7 +1047,7 @@ async function setCurrentTabName() {
     }
     
     document.getElementById('groupNameDomainInput').value = domain;
-    await addDomainName(domain, nameInput.value);
+    await addDomainGroupName(domain, nameInput.value);
   } catch (error) {
     console.error('Error setting current tab name:', error);
     showStatus('エラーが発生しました');
@@ -1333,17 +1190,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('addGroupNameBtn').addEventListener('click', () => {
     const domain = document.getElementById('groupNameDomainInput').value;
     const name = document.getElementById('groupNameCustomInput').value;
-    addDomainName(domain, name);
+    addDomainGroupName(domain, name);
   });
   
-  document.getElementById('setCurrentGroupNameBtn').addEventListener('click', setCurrentTabName);
+  document.getElementById('setCurrentGroupNameBtn').addEventListener('click', setCurrentTabGroupName);
   
   // Enterキーでドメイングループ名設定
   document.getElementById('groupNameDomainInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       const domain = document.getElementById('groupNameDomainInput').value;
       const name = document.getElementById('groupNameCustomInput').value;
-      addDomainName(domain, name);
+      addDomainGroupName(domain, name);
     }
   });
   
@@ -1351,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Enter') {
       const domain = document.getElementById('groupNameDomainInput').value;
       const name = document.getElementById('groupNameCustomInput').value;
-      addDomainName(domain, name);
+      addDomainGroupName(domain, name);
     }
   });
 
