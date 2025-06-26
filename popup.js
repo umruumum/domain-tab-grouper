@@ -905,9 +905,9 @@ async function updateDomainNamesList() {
         nameList.innerHTML = '<div class="empty-state">ドメイングループ名設定はありません</div>';
       } else {
         nameList.innerHTML = Object.entries(domainNames).map(([domain, name]) => `
-          <div class="name-item">
-            <span class="name-domain">${domain}</span>
-            <span class="name-badge">${name}</span>
+          <div class="color-item">
+            <span class="color-domain">${domain}</span>
+            <span class="color-badge green">${name}</span>
             <button class="remove-btn" data-domain="${domain}">削除</button>
           </div>
         `).join('');
