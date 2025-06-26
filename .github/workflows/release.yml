@@ -59,58 +59,149 @@ jobs:
           # Create temporary directory for extension files
           mkdir -p extension-package
           
-          # Copy required files for Chrome extension
-          cp manifest.json extension-package/
-          cp background.js extension-package/
-          cp popup.html extension-package/
-          cp popup.js extension-package/
-          cp content.js extension-package/
-          cp constants.js extension-package/
-          cp utils.js extension-package/
+          echo "📦 Determining required files for Chrome extension..."
           
-          # Copy icons if they exist
+          # Core required files for Chrome extension
+          REQUIRED_FILES=(
+            "manifest.json"
+            "background.js"
+            "popup.html"
+            "popup.js"
+          )
+          
+          # Check for optional but commonly needed files
+          OPTIONAL_FILES=(
+            "content.js"
+            "constants.js" 
+            "utils.js"
+            "options.html"
+            "options.js"
+          )
+          
+          # Copy required files (must exist)
+          echo "📋 Copying required files..."
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              cp "$file" extension-package/
+              echo "✅ $file"
+            else
+              echo "❌ Required file missing: $file"
+              exit 1
+            fi
+          done
+          
+          # Copy optional files (if they exist)
+          echo "📋 Copying optional files..."
+          for file in "${OPTIONAL_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              cp "$file" extension-package/
+              echo "✅ $file"
+            else
+              echo "ℹ️  Optional file not found: $file"
+            fi
+          done
+          
+          # Copy icons directory if it exists
           if [ -d "icons" ]; then
             cp -r icons extension-package/
+            echo "✅ icons/ directory"
+          else
+            echo "ℹ️  No icons directory found"
           fi
+          
+          # Copy any other asset directories commonly used in Chrome extensions
+          for dir in "images" "css" "fonts"; do
+            if [ -d "$dir" ]; then
+              cp -r "$dir" extension-package/
+              echo "✅ $dir/ directory"
+            fi
+          done
+          
+          # List all files that will be included
+          echo ""
+          echo "📦 Package contents:"
+          find extension-package -type f | sort
           
           # Create zip file
           cd extension-package
           zip -r "../domain-tab-grouper-${{ steps.version.outputs.version }}.zip" .
           cd ..
           
-          echo "Package created: domain-tab-grouper-${{ steps.version.outputs.version }}.zip"
-          ls -la *.zip
+          echo ""
+          echo "✅ Package created: domain-tab-grouper-${{ steps.version.outputs.version }}.zip"
+          echo "📊 Package size: $(du -h *.zip | cut -f1)"
 
       - name: Generate release notes
         id: release_notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           
-          # Create detailed Japanese release notes
+          echo "📝 Generating release notes for $VERSION..."
+          
+          # Get previous tag for changelog generation
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          
+          # Generate change summary
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "🔍 Changes since $PREVIOUS_TAG:"
+            COMMIT_RANGE="${PREVIOUS_TAG}..HEAD"
+          else
+            echo "🔍 Initial release - showing last 10 commits:"
+            COMMIT_RANGE="HEAD~10..HEAD"
+          fi
+          
+          # Get commit messages and classify them
+          FEATURES=""
+          FIXES=""
+          OTHERS=""
+          
+          while IFS= read -r commit; do
+            if [[ $commit == feat* ]] || [[ $commit == *"新機能"* ]] || [[ $commit == *"追加"* ]]; then
+              FEATURES="${FEATURES}\n- ${commit#*: }"
+            elif [[ $commit == fix* ]] || [[ $commit == *"修正"* ]] || [[ $commit == *"バグ"* ]]; then
+              FIXES="${FIXES}\n- ${commit#*: }"
+            else
+              OTHERS="${OTHERS}\n- ${commit#*: }"
+            fi
+          done < <(git log --pretty=format:"%s" $COMMIT_RANGE 2>/dev/null | head -20)
+          
+          # Create release notes based on actual changes
           cat > release_notes.md << EOF
           ## 🎉 Domain Tab Grouper $VERSION
           
-          ドメインベースでタブを自動グループ化するChrome拡張機能のリリースです。
+          ドメインベースでタブを自動グループ化するChrome拡張機能の新バージョンです。
           
-          ## ✨ 主な機能
+          EOF
           
-          ### 🔄 自動グループ化
-          - **効率的グループ化**: 同じドメインのタブが2つ以上ある場合に自動グループ化
-          - **自動グループ解除**: グループが1つのタブになった時に自動解除
-          - **リアルタイム検知**: タブ作成・ページ遷移を即座に検知
-          - **スマート移動**: ドメイン変更時に適切なグループへ自動移動
+          # Add features if any
+          if [ -n "$FEATURES" ]; then
+            cat >> release_notes.md << EOF
+          ## ✨ 新機能・改善
+          $(echo -e "$FEATURES")
           
-          ### 🎨 視覚的管理
-          - **色分け表示**: ドメインごとに異なる色でグループを識別
-          - **ウィンドウ別管理**: 各ウィンドウで独立したグループ管理
-          - **クリーンUI**: 直感的で使いやすいポップアップインターフェース
+          EOF
+          fi
           
-          ### ⚙️ 柔軟な制御
-          - **ON/OFF切り替え**: 自動グループ化の有効・無効をワンクリック
-          - **手動操作**: いつでも手動でグループ化・解除が可能
-          - **除外ドメイン設定**: 特定のドメインをグループ化から除外（ワイルドカード対応）
-          - **設定永続化**: 設定は自動保存され、再起動後も維持
+          # Add fixes if any
+          if [ -n "$FIXES" ]; then
+            cat >> release_notes.md << EOF
+          ## 🐛 バグ修正
+          $(echo -e "$FIXES")
           
+          EOF
+          fi
+          
+          # Add other changes if any
+          if [ -n "$OTHERS" ]; then
+            cat >> release_notes.md << EOF
+          ## 🔧 その他の変更
+          $(echo -e "$OTHERS")
+          
+          EOF
+          fi
+          
+          # Add installation instructions
+          cat >> release_notes.md << EOF
           ## 📦 インストール方法
           
           1. \`domain-tab-grouper-$VERSION.zip\` ファイルをダウンロード
@@ -119,23 +210,6 @@ jobs:
              - \`chrome://extensions/\` を開く
              - 「デベロッパーモード」を有効化
              - 「パッケージ化されていない拡張機能を読み込む」をクリックして解凍したフォルダを選択
-          
-          ## 🚀 使用例
-          
-          \`\`\`
-          例: google.com のタブが2つ以上ある場合
-          → 「google.com」という名前のグループが自動作成される
-          
-          例: 単一のタブの場合
-          → グループ化せずに通常のタブのまま
-          
-          例: グループが1つのタブになった場合
-          → 自動的にグループが解除され、通常のタブに戻る
-          
-          例: 除外ドメイン設定
-          → "example.com" または "*.example.com" を追加
-          → 該当ドメインはグループ化されなくなる
-          \`\`\`
           
           ## 🛠️ 技術仕様
           
@@ -149,6 +223,11 @@ jobs:
           Made with ❤️ for better browsing experience
           </div>
           EOF
+          
+          echo "✅ Release notes generated"
+          echo "📄 Preview:"
+          head -20 release_notes.md
+          echo "..."
           
           echo "release_notes_file=release_notes.md" >> $GITHUB_OUTPUT
 
