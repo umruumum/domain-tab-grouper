@@ -404,79 +404,6 @@
       margin-top: 8px;
     }
 
-    .domain-names-section {
-      margin-top: 20px;
-      padding: 15px;
-      background-color: #e8f5e8;
-      border-radius: 8px;
-      border: 1px solid #c8e6c9;
-    }
-
-    .name-input-container {
-      display: flex;
-      gap: 4px;
-      margin-bottom: 12px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .group-name-input {
-      flex: 1;
-      padding: 6px 8px;
-      border: 1px solid #dadce0;
-      border-radius: 4px;
-      font-size: 12px;
-      min-width: 80px;
-    }
-
-    .group-name-input:focus {
-      outline: none;
-      border-color: #4caf50;
-      box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
-    }
-
-    .name-list {
-      max-height: 120px;
-      overflow-y: auto;
-    }
-
-    .name-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 10px;
-      margin-bottom: 4px;
-      background-color: white;
-      border-radius: 4px;
-      border: 1px solid #c8e6c9;
-      font-size: 12px;
-    }
-
-    .name-domain {
-      flex: 1;
-      color: #333;
-      font-family: monospace;
-      word-break: break-all;
-      margin-right: 8px;
-    }
-
-    .name-badge {
-      padding: 4px 8px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 500;
-      background-color: #4caf50;
-      color: white;
-      margin-right: 8px;
-      max-width: 100px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .quick-name {
-      margin-top: 8px;
-    }
 
     /* コンテキストメニューのスタイル */
     .context-menu {
@@ -634,18 +561,11 @@
       border-radius: 12px;
       box-shadow: 0 6px 16px rgba(0,0,0,0.2);
       z-index: 1001;
-      min-width: 280px;
+      width: 260px;
       display: none;
-      padding: 16px;
+      padding: 12px;
     }
 
-    .name-input-header {
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 12px;
-      text-align: center;
-    }
 
   </style>
 </head>
@@ -704,20 +624,6 @@
     </div>
   </div>
 
-  <div class="domain-names-section">
-    <div class="section-title">ドメイン名設定</div>
-    <div class="name-input-container">
-      <input type="text" id="nameDomainInput" class="domain-input" placeholder="example.com">
-      <input type="text" id="nameInput" class="domain-input" placeholder="カスタムグループ名">
-      <button id="addNameBtn" class="btn small">設定</button>
-    </div>
-    <div class="quick-name">
-      <button id="setCurrentNameBtn" class="btn small secondary">現在のタブのグループ名を設定</button>
-    </div>
-    <div class="name-list" id="nameList">
-      <div class="empty-state">ドメイン名設定はありません</div>
-    </div>
-  </div>
 
   <div class="domain-colors-section">
     <div class="section-title">ドメイン色設定</div>
@@ -746,15 +652,15 @@
 
   <div class="domain-names-section">
     <div class="section-title">ドメイングループ名設定</div>
-    <div class="name-input-container">
-      <input type="text" id="nameDomainInput" class="domain-input" placeholder="example.com">
-      <input type="text" id="groupNameInput" class="group-name-input" placeholder="カスタムグループ名">
-      <button id="addNameBtn" class="btn small">設定</button>
+    <div class="color-input-container">
+      <input type="text" id="groupNameDomainInput" class="domain-input" placeholder="example.com">
+      <input type="text" id="groupNameCustomInput" class="domain-input" placeholder="カスタムグループ名">
+      <button id="addGroupNameBtn" class="btn small">設定</button>
     </div>
-    <div class="quick-name">
-      <button id="setCurrentNameBtn" class="btn small secondary">現在のタブのグループ名を設定</button>
+    <div class="quick-color">
+      <button id="setCurrentGroupNameBtn" class="btn small secondary">現在のタブのグループ名を設定</button>
     </div>
-    <div class="name-list" id="nameList">
+    <div class="color-list" id="groupNameList">
       <div class="empty-state">ドメイングループ名設定はありません</div>
     </div>
   </div>
@@ -779,8 +685,8 @@
 
   <!-- グループ名入力メニュー -->
   <div class="group-name-input-menu" id="groupNameInputMenu">
-    <div class="name-input-header">グループ名を変更</div>
-    <div class="name-input-container">
+    <div class="color-selection-header">グループ名を変更</div>
+    <div class="color-input-container">
       <input type="text" id="groupNameInput" class="domain-input" placeholder="新しいグループ名を入力">
       <button id="applyGroupNameBtn" class="btn small">適用</button>
       <button id="cancelGroupNameBtn" class="btn small secondary">キャンセル</button>
